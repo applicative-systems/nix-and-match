@@ -7,6 +7,8 @@
       inherit (inputs.nixpkgs) lib;
     in
     {
+      testModules.default = ./lib/module.nix;
+
       formatter = builtins.mapAttrs (
         _: pkgs:
         pkgs.treefmt.withConfig {
@@ -42,9 +44,14 @@
       checks = builtins.mapAttrs (
         system: pkgs:
         let
-          foreign = import ./lib/foreign-vm.nix { inherit pkgs; };
-          images = import ./lib/images.nix { inherit pkgs; };
-          mkTest = path: pkgs.testers.runNixOSTest (import path { inherit pkgs foreign images; });
+          mkTest =
+            path:
+            pkgs.testers.runNixOSTest {
+              imports = [
+                inputs.self.testModules.default
+                path
+              ];
+            };
         in
         {
           formatting = inputs.self.formatter.${system}.check inputs.self;

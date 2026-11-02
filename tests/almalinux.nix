@@ -1,17 +1,9 @@
-{ foreign, images, ... }:
-let
-  vm = foreign.mkForeignVM {
-    name = "alma";
-    inherit (images.almalinux) image format;
-    ip = "192.168.1.100";
-    userData = foreign.backdoorCloudConfig { hosts = "192.168.1.1 server\n"; };
-  };
-in
 {
   name = "alma-interop";
 
+  foreignNodes.alma.image = "almalinux-9";
+
   nodes.server = {
-    networking.extraHosts = "192.168.1.100 alma";
     networking.firewall.allowedTCPPorts = [ 80 ];
     services.nginx = {
       enable = true;
@@ -20,10 +12,6 @@ in
   };
 
   testScript = ''
-    alma = create_machine("${vm}")
-    # registered so start_all() and driver cleanup cover it
-    machines_qemu.append(alma)
-
     start_all()
 
     server.wait_for_unit("nginx.service")

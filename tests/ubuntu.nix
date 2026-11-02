@@ -1,17 +1,9 @@
-{ foreign, images, ... }:
-let
-  vm = foreign.mkForeignVM {
-    name = "ubuntu";
-    inherit (images.ubuntu) image format;
-    ip = "192.168.1.100";
-    userData = foreign.backdoorCloudConfig { hosts = "192.168.1.1 server\n"; };
-  };
-in
 {
   name = "ubuntu-interop";
 
+  foreignNodes.ubuntu.image = "ubuntu-24.04";
+
   nodes.server = {
-    networking.extraHosts = "192.168.1.100 ubuntu";
     networking.firewall.allowedTCPPorts = [ 80 ];
     services.nginx = {
       enable = true;
@@ -20,10 +12,6 @@ in
   };
 
   testScript = ''
-    ubuntu = create_machine("${vm}")
-    # registered so start_all() and driver cleanup cover it
-    machines_qemu.append(ubuntu)
-
     start_all()
 
     server.wait_for_unit("nginx.service")
