@@ -2,6 +2,41 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
   outputs = inputs: {
+    formatter = builtins.mapAttrs (
+      _system: pkgs:
+      let
+        inherit (pkgs) lib;
+      in
+      pkgs.treefmt.withConfig {
+        settings = {
+          tree-root-file = "flake.nix";
+          on-unmatched = "info";
+          formatter = {
+            nixfmt = {
+              command = lib.getExe pkgs.nixfmt;
+              includes = [ "*.nix" ];
+            };
+            statix = {
+              command = lib.getExe pkgs.statix;
+              options = [ "fix" ];
+              no-positional-arg-support = true;
+              includes = [ "*.nix" ];
+            };
+            deadnix = {
+              command = lib.getExe pkgs.deadnix;
+              options = [ "--edit" ];
+              includes = [ "*.nix" ];
+            };
+            prettier = {
+              command = lib.getExe pkgs.prettier;
+              options = [ "--write" ];
+              includes = [ "*.md" ];
+            };
+          };
+        };
+      }
+    ) inputs.nixpkgs.legacyPackages;
+
     checks = builtins.mapAttrs (
       system: pkgs:
       let
@@ -10,6 +45,8 @@
         mkTest = path: pkgs.testers.runNixOSTest (import path { inherit pkgs foreign images; });
       in
       {
+        formatting = inputs.self.formatter.${system}.check inputs.self;
+
         ubuntu = mkTest ./tests/ubuntu.nix;
         almalinux = mkTest ./tests/almalinux.nix;
         talos = mkTest ./tests/talos.nix;
