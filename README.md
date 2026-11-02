@@ -40,7 +40,9 @@ nix build .#checks.x86_64-linux.ubuntu -L   # or almalinux, talos
 
 - Each entry in `foreignNodes` boots a pinned cloud image on a copy-on-write
   overlay, attached to the test's VDE switch with a static IP from a
-  cloud-init seed. All machines get each other's names in `/etc/hosts`.
+  cloud-init seed. It is also an empty entry in `nodes` that is never built,
+  so the test framework assigns its addresses and hosts entries, available as
+  `nodes.<name>.networking.primaryIPAddress`.
 - For cloud-init distros, the seed installs the test driver's `hvc0` root
   shell, so `machine.succeed(...)` works as it does on NixOS.
 - Talos has no shell. It gets a machine config through `userDataFile` and is

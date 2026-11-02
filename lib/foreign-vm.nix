@@ -95,14 +95,14 @@ in
 {
   inherit backdoorCloudConfig;
 
-  # start command for `create_machine`; the `run-<name>-vm` suffix gives the machine its name
+  # start script for the test driver
   mkForeignVM =
     {
       name,
       image,
       format,
-      # nixos test nodes use 192.168.<vlan>.<node index>, so stay clear of low numbers
       ip,
+      ip6,
       vlan ? 1,
       memory ? 2048,
       cores ? 2,
@@ -121,7 +121,10 @@ in
           version = 2;
           ethernets.eth0 = {
             match.macaddress = mac;
-            addresses = [ "${ip}/24" ];
+            addresses = [
+              "${ip}/24"
+              "${ip6}/64"
+            ];
           };
         };
       };
