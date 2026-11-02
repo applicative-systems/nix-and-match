@@ -20,14 +20,13 @@
   talos = rec {
     version = "1.14.1";
     format = "raw";
-    image =
-      pkgs.runCommand "talos-nocloud-amd64.raw" { nativeBuildInputs = [ pkgs.xz ]; } ''
-        xz -dc ${
-          pkgs.fetchurl {
-            url = "https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v${version}/nocloud-amd64.raw.xz";
-            hash = "sha256-Mao4Dp3eKDRmZwAg796sX7h3WDgJQDjA32UPic/rfEA=";
-          }
-        } > $out
-      '';
+    image = pkgs.runCommand "talos-nocloud-amd64.raw" { nativeBuildInputs = [ pkgs.xz ]; } ''
+      xz -dc ${
+        pkgs.fetchurl {
+          url = "https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v${version}/nocloud-amd64.raw.xz";
+          hash = "sha256-Mao4Dp3eKDRmZwAg796sX7h3WDgJQDjA32UPic/rfEA=";
+        }
+      } > $out
+    '';
   };
 }

@@ -2,7 +2,10 @@
 let
   inherit (pkgs) lib;
   toYAML = lib.generators.toYAML { };
-  qemuCommon = import "${pkgs.path}/nixos/lib/qemu-common.nix" { inherit lib; inherit (pkgs) stdenv; };
+  qemuCommon = import "${pkgs.path}/nixos/lib/qemu-common.nix" {
+    inherit lib;
+    inherit (pkgs) stdenv;
+  };
 
   # same wire protocol as nixos/modules/testing/test-instrumentation.nix
   backdoorScript = ''
@@ -31,7 +34,9 @@ let
 
   # cloud-config that makes a cloud-init distro drivable by the test driver
   backdoorCloudConfig =
-    { hosts ? "" }:
+    {
+      hosts ? "",
+    }:
     "#cloud-config\n"
     + toYAML {
       write_files = [
@@ -51,10 +56,25 @@ let
         }
       ];
       # systemd-getty-generator would otherwise grab hvc0
-      bootcmd = [ [ "systemctl" "mask" "--now" "serial-getty@hvc0.service" ] ];
+      bootcmd = [
+        [
+          "systemctl"
+          "mask"
+          "--now"
+          "serial-getty@hvc0.service"
+        ]
+      ];
       runcmd = [
-        [ "systemctl" "daemon-reload" ]
-        [ "systemctl" "start" "--no-block" "nixos-test-backdoor.service" ]
+        [
+          "systemctl"
+          "daemon-reload"
+        ]
+        [
+          "systemctl"
+          "start"
+          "--no-block"
+          "nixos-test-backdoor.service"
+        ]
       ];
     };
 

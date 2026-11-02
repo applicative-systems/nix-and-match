@@ -1,14 +1,18 @@
-{ pkgs, foreign, images, ... }:
+{
+  pkgs,
+  foreign,
+  images,
+  ...
+}:
 let
   # no shell on talos: it gets a machine config via nocloud user-data and is driven through its API
-  talosConfig =
-    pkgs.runCommand "talos-config" { nativeBuildInputs = [ pkgs.talosctl ]; } ''
-      export HOME=$TMPDIR
-      talosctl gen config interop https://192.168.1.100:6443 \
-        --talos-version v${images.talos.version} --install-disk /dev/vda --with-docs=false --with-examples=false \
-        --config-patch '{"machine":{"time":{"servers":["192.168.1.1"]}}}' \
-        -o $out
-    '';
+  talosConfig = pkgs.runCommand "talos-config" { nativeBuildInputs = [ pkgs.talosctl ]; } ''
+    export HOME=$TMPDIR
+    talosctl gen config interop https://192.168.1.100:6443 \
+      --talos-version v${images.talos.version} --install-disk /dev/vda --with-docs=false --with-examples=false \
+      --config-patch '{"machine":{"time":{"servers":["192.168.1.1"]}}}' \
+      -o $out
+  '';
 
   vm = foreign.mkForeignVM {
     name = "talos";
