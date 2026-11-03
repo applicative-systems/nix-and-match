@@ -27,6 +27,8 @@ let
     [Unit]
     Requires=dev-hvc0.device dev-ttyS0.device
     After=dev-hvc0.device dev-ttyS0.device cloud-final.service
+    # keep the shell when the test switches targets, e.g. to rescue.target
+    IgnoreOnIsolate=true
     [Service]
     ExecStart=/bin/bash /usr/local/sbin/nixos-test-backdoor
     KillSignal=SIGHUP
@@ -285,6 +287,7 @@ in
       fi
       exec ${qemuCommon.qemuBinary qemu} \
         -name ${name} -m ${toString memory} -smp ${toString cores} \
+        -device virtio-rng-pci \
         -drive file="$disk",if=virtio \
         -drive file=${seed},if=virtio,media=cdrom,readonly=on \
         -netdev vde,id=vlan${toString vlan},sock="$QEMU_VDE_SOCKET_${toString vlan}" \

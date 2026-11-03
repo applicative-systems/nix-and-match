@@ -29,5 +29,13 @@ image: {
         guest.execute("systemctl stop firewalld")
         guest.succeed("systemd-run --unit=web python3 -m http.server 8000 -d /etc")
         server.wait_until_succeeds("curl -sf http://guest:8000/os-release | grep PRETTY_NAME")
+
+    with subtest("virtio rng"):
+        # device id 4 is the entropy source; whether a driver uses it is up to the distro
+        guest.succeed("grep -x 0x0004 /sys/bus/virtio/devices/*/device")
+
+    with subtest("shell survives isolate"):
+        guest.succeed("systemctl isolate rescue.target")
+        guest.succeed("systemctl is-active rescue.target")
   '';
 }
