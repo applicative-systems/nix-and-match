@@ -11,22 +11,8 @@ let
   catalog = import ./images.nix { pkgs = hostPkgs; };
   inherit (hostPkgs.stdenv.hostPlatform) system;
 
-  # the same folders as on NixOS test VMs, so the driver's `copy_from_host` and
-  # `copy_from_machine` work. Images without virtiofs and Talos get none.
-  shares =
-    node:
-    lib.optionalAttrs (catalog.${node.image}.virtiofs && node.provisioner != "none") {
-      xchg = {
-        source = ''"$TMPDIR"/xchg'';
-        target = "/tmp/xchg";
-        writable = true;
-      };
-      shared = {
-        source = ''"''${SHARED_DIR:-$TMPDIR/xchg}"'';
-        target = "/tmp/shared";
-        writable = true;
-      };
-    };
+  # whether the machine can mount shared folders
+  canShare = node: catalog.${node.image}.virtiofs && node.provisioner != "none";
 
   userDataFile =
     name: node:
@@ -35,7 +21,7 @@ let
       args = {
         inherit name;
         inherit (node) shell;
-        shares = shares node;
+        shares = node.sharedDirectories;
         hosts = networking.extraHosts;
         ip = networking.primaryIPAddress;
         ip6 = networking.primaryIPv6Address;
@@ -72,7 +58,7 @@ let
       ip = networking.primaryIPAddress;
       ip6 = networking.primaryIPv6Address;
       inherit (top.nodes.${name}.virtualisation.test) nodeNumber;
-      shares = shares node;
+      shares = node.sharedDirectories;
       userDataFile = userDataFile name node;
     };
 
@@ -219,6 +205,71 @@ let
           default = "10G";
           example = "+5G";
         };
+
+        sharedDirectories = lib.mkOption {
+          description = ''
+            Host directories shared with the machine over virtiofs, as
+            `virtualisation.sharedDirectories` on NixOS test VMs. The attribute
+            name is the mount tag. They are mounted before the shell starts.
+
+            `xchg` and `shared` are always there, as on NixOS test VMs, so
+            `copy_from_host` and `copy_from_machine` work. Images whose kernel
+            has no virtiofs, such as Oracle Linux, and machines with
+            `provisioner = "none"` can't have shared folders.
+          '';
+          type = lib.types.attrsOf (
+            lib.types.submodule {
+              options = {
+                source = lib.mkOption {
+                  description = ''
+                    Directory on the host. It is a shell expression, so it can
+                    refer to the variables of the start script, such as
+                    `$TMPDIR`, which is the machine's state directory. Writable
+                    directories are created if they don't exist.
+                  '';
+                  type = lib.types.str;
+                  example = lib.literalExpression ''"''${./data}"'';
+                };
+                target = lib.mkOption {
+                  description = "Mount point in the machine.";
+                  type = lib.types.path;
+                  example = "/srv/data";
+                };
+                writable = lib.mkEnableOption "writing to the directory from the machine";
+              };
+            }
+          );
+          default = { };
+          example = lib.literalExpression ''
+            {
+              # read-only, from the Nix store
+              data = {
+                source = "''${./data}";
+                target = "/srv/data";
+              };
+              # writable, in the machine's state directory
+              results = {
+                source = '''"$TMPDIR"/results''';
+                target = "/srv/results";
+                writable = true;
+              };
+            }
+          '';
+        };
+      };
+
+      # the same folders as on NixOS test VMs
+      config.sharedDirectories = lib.mkIf (canShare config) {
+        xchg = {
+          source = ''"$TMPDIR"/xchg'';
+          target = "/tmp/xchg";
+          writable = true;
+        };
+        shared = {
+          source = ''"''${SHARED_DIR:-$TMPDIR/xchg}"'';
+          target = "/tmp/shared";
+          writable = true;
+        };
       };
     };
 
@@ -251,6 +302,22 @@ let
       {
         assertion = lib.elem system catalog.${node.image}.systems;
         message = unavailable name node;
+      }
+      {
+        assertion = canShare node || node.sharedDirectories == { };
+        message = "foreignNodes.${name}.sharedDirectories: ${
+          if p == "none" then
+            "machines with provisioner = \"none\" can't mount them"
+          else
+            "the kernel of ${node.image} has no virtiofs"
+        }";
+      }
+      {
+        # QEMU ids and virtiofs tags
+        assertion = lib.all (tag: builtins.match "[a-zA-Z][a-zA-Z0-9_.-]{0,35}" tag != null) (
+          lib.attrNames node.sharedDirectories
+        );
+        message = "foreignNodes.${name}.sharedDirectories: names must start with a letter, contain only letters, digits, `_`, `.` and `-`, and be at most 36 characters long";
       }
       {
         assertion = p == "none" || catalog.${node.image}.provisioner == "cloud-init";

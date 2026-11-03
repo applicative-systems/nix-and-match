@@ -293,6 +293,7 @@ in
       mac = qemuCommon.qemuNicMac vlan nodeNumber;
       # one virtiofsd per share, as NixOS test VMs do (see qemu-vm.nix)
       startVirtiofsd = tag: share: ''
+        ${lib.optionalString share.writable "mkdir -p ${share.source}"}
         ${lib.getExe pkgs.virtiofsd} \
           --socket-path="$virtiofs/${tag}" \
           --shared-dir=${share.source} \
@@ -347,7 +348,6 @@ in
         ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null ||
           echo "${name}: disk stays at the image's size, which is larger than ${diskSize}" >&2
       fi
-      mkdir -p "$TMPDIR/xchg"
       ${lib.optionalString (shares != { }) ''
         virtiofs=$(mktemp -d)
         ${lib.concatLines (lib.mapAttrsToList startVirtiofsd shares)}

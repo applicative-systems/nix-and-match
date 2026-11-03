@@ -23,6 +23,17 @@ in
       memorySize = 1536;
       cores = 1;
       diskSize = "+3G";
+      sharedDirectories = {
+        data = {
+          source = "${pkgs.writeTextDir "message" "from the store\n"}";
+          target = "/srv/data";
+        };
+        results = {
+          source = ''"$TMPDIR"/results'';
+          target = "/srv/results";
+          writable = true;
+        };
+      };
       cloudInit.config = {
         write_files = [
           {
@@ -30,8 +41,12 @@ in
             content = "from cloudInit.config";
           }
         ];
-        # readiness: the shell must not be there before this is done
-        runcmd = [ "sleep 15 && touch /run/provisioned" ];
+        runcmd = [
+          # readiness: the shell must not be there before this is done
+          "sleep 15 && touch /run/provisioned"
+          # shares are mounted before
+          "cp /srv/data/message /run/message"
+        ];
       };
     };
 
@@ -60,19 +75,15 @@ in
       '';
     };
 
-    # no shell: only visible from the network
+    # no shell: only visible from the network. It serves a shared folder.
     silent = {
       image = "almalinux-9";
       shell = false;
-      cloudInit.config = {
-        write_files = [
-          {
-            path = "/srv/index.html";
-            content = "silent machine";
-          }
-        ];
-        runcmd = [ "systemd-run --unit=web python3 -m http.server 8000 -d /srv" ];
+      sharedDirectories.www = {
+        source = "${pkgs.writeTextDir "index.html" "silent machine"}";
+        target = "/srv/www";
       };
+      cloudInit.config.runcmd = [ "systemd-run --unit=web python3 -m http.server 8000 -d /srv/www" ];
     };
 
     # no cloud-init: the seed is the machine config
@@ -121,9 +132,18 @@ in
         # amazon's image is 25G, more than the default 10G
         merged.succeed("test $(lsblk -bdno SIZE /dev/vda) -eq $((25 * 1024 ** 3))")
 
-    with subtest("custom: script runs, shell and network are added"):
+    with subtest("shared directories"):
+        configured.succeed("grep -x 'from the store' /run/message")
+        configured.fail("touch /srv/data/new")
+        configured.succeed("echo result > /srv/results/out")
+        assert (configured.state_dir / "results" / "out").read_text() == "result\n"
+        # the defaults are still there
+        configured.succeed("findmnt -t virtiofs /tmp/shared")
+
+    with subtest("custom: script runs, shell, network and shares are added"):
         scripted.succeed("grep 'from a script' /run/provisioned")
         scripted.succeed("curl -sf http://server/ | grep 'hello from nixos'")
+        scripted.succeed("findmnt -t virtiofs /tmp/shared")
 
     with subtest("custom: cloud-config merged with the generated one"):
         merged.succeed("test -e /run/provisioned")

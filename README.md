@@ -109,6 +109,20 @@ So `copy_from_host` and `copy_from_machine` work as on NixOS. The folders are
 mounted before the shell starts. With `provisioner = "cloud-init"`, they are
 also mounted before the `runcmd` commands from `cloudInit.config` run.
 
+Add your own with `sharedDirectories`, as on NixOS test VMs:
+
+```nix
+foreignNodes.web = {
+  image = "debian-13";
+  sharedDirectories = {
+    # read-only, from the Nix store
+    www = { source = "${./www}"; target = "/srv/www"; };
+    # writable; $TMPDIR is the machine's state directory on the host
+    logs = { source = ''"$TMPDIR"/logs''; target = "/srv/logs"; writable = true; };
+  };
+};
+```
+
 Oracle Linux's kernel has no virtiofs, so it gets no shared folders: use
 `copy_from_host_via_shell` there. Machines with `provisioner = "none"` don't
 get them either.
