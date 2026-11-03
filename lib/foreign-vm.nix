@@ -377,6 +377,7 @@ in
         -drive file=${seed},if=virtio,media=cdrom,readonly=on \
         ${lib.concatStringsSep " " (qemuCommon.qemuNICFlags 1 vlan nodeNumber)} \
         ${lib.concatStringsSep " " sharesFlags} \
+        ''${QEMU_OPTS:-} \
         "$@"
     '';
 }

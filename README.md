@@ -146,6 +146,20 @@ which only publishes x86_64 images. Guests always have the host's system and
 run with KVM, so tests for aarch64 guests run on aarch64 hosts. There is no
 emulation of other architectures.
 
+## Interactive runs
+
+Every test has a `driverInteractive`, as NixOS tests do:
+
+```sh
+nix run .#checks.x86_64-linux.debian-13.driverInteractive
+```
+
+In the Python prompt, `start_all()` boots the machines, `guest.succeed(...)`
+runs commands, and `guest.shell_interact()` opens a root shell on a machine
+with a shell. The machines have no root password, so there is no console
+login; their consoles only show up in the log. `$QEMU_OPTS` is passed to QEMU
+of all machines, foreign ones included.
+
 ## Images
 
 `lib/images.json` is generated. Refresh it from the repository root with:
