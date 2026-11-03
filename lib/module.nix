@@ -37,6 +37,7 @@ let
     foreign.mkForeignVM {
       inherit name;
       inherit (catalog.${node.image}) image format;
+      inherit (node) memorySize cores diskSize;
       ip = networking.primaryIPAddress;
       ip6 = networking.primaryIPv6Address;
       userDataFile = userDataFile name node;
@@ -147,6 +148,38 @@ let
           default = config.provisioner != "none";
           defaultText = lib.literalExpression ''provisioner != "none"'';
           example = false;
+        };
+
+        memorySize = lib.mkOption {
+          description = "Memory of the machine in MiB.";
+          type = lib.types.ints.positive;
+          default = 2048;
+          example = 4096;
+        };
+
+        cores = lib.mkOption {
+          description = "Number of CPU cores of the machine.";
+          type = lib.types.ints.positive;
+          default = 2;
+          example = 4;
+        };
+
+        diskSize = lib.mkOption {
+          description = ''
+            Size of the machine's disk, in `qemu-img` syntax: absolute, such as
+            `"20G"`, or relative to the image's size, such as `"+5G"`. Disks
+            only grow: an absolute size below the image's size keeps the image's
+            size. cloud-init grows the root partition and file system on boot,
+            images without cloud-init may not use the extra space.
+
+            Use a relative size when the test needs free space whatever the
+            image's size is, since images differ: Debian's is 3G, Amazon
+            Linux's 25G. The disk is a copy-on-write overlay, so only what the
+            test writes takes space on the host.
+          '';
+          type = lib.types.strMatching "\\+?[0-9]+[KMGT]?";
+          default = "10G";
+          example = "+5G";
         };
       };
     };

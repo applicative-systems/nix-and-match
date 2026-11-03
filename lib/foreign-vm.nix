@@ -250,7 +250,7 @@ in
       ip,
       ip6,
       vlan ? 1,
-      memory ? 2048,
+      memorySize ? 2048,
       cores ? 2,
       diskSize ? "10G",
       userDataFile,
@@ -283,10 +283,11 @@ in
       if [ ! -e "$disk" ]; then
         ${qemu}/bin/qemu-img create -q -f qcow2 -F ${format} -b ${image} "$disk"
         # grow only: qemu-img refuses to shrink, which would cut off larger images
-        ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null || true
+        ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null ||
+          echo "${name}: disk stays at the image's size, which is larger than ${diskSize}" >&2
       fi
       exec ${qemuCommon.qemuBinary qemu} \
-        -name ${name} -m ${toString memory} -smp ${toString cores} \
+        -name ${name} -m ${toString memorySize} -smp ${toString cores} \
         -device virtio-rng-pci \
         -drive file="$disk",if=virtio \
         -drive file=${seed},if=virtio,media=cdrom,readonly=on \

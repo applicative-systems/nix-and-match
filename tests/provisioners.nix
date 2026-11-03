@@ -20,6 +20,9 @@ in
     # generated cloud-config plus our own settings
     configured = {
       image = "debian-13";
+      memorySize = 1536;
+      cores = 1;
+      diskSize = "+3G";
       cloudInit.config = {
         write_files = [
           {
@@ -106,6 +109,17 @@ in
         configured.succeed("test -e /run/provisioned")
         configured.succeed("grep 'from cloudInit.config' /etc/greeting")
         configured.succeed("curl -sf http://server/ | grep 'hello from nixos'")
+
+    with subtest("machine sizes"):
+        configured.succeed("test $(nproc) -eq 1")
+        # MemTotal excludes what the kernel reserves
+        configured.succeed("awk '/MemTotal/ { exit !($2 > 1300000 && $2 <= 1536 * 1024) }' /proc/meminfo")
+        # debian's image is 3G, plus 3G
+        configured.succeed("test $(lsblk -bdno SIZE /dev/vda) -eq $((6 * 1024 ** 3))")
+        # cloud-init grew the root file system
+        configured.succeed("test $(df -B1 --output=size / | tail -n 1) -gt $((5 * 1024 ** 3))")
+        # amazon's image is 25G, more than the default 10G
+        merged.succeed("test $(lsblk -bdno SIZE /dev/vda) -eq $((25 * 1024 ** 3))")
 
     with subtest("custom: script runs, shell and network are added"):
         scripted.succeed("grep 'from a script' /run/provisioned")
