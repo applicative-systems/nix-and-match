@@ -27,7 +27,9 @@ let
     echo "connecting to host..." >&2
     stty -F /dev/hvc0 raw -echo
     echo "Spawning backdoor root shell..."
-    PS1="" exec /bin/bash --norc /dev/hvc0
+    # SUSE's /etc/profile exports a read-only PROFILEREAD, after which login
+    # shells started from this one would skip /etc/profile.d
+    PS1="" exec env -u PROFILEREAD /bin/bash --norc /dev/hvc0
   '';
 
   # runcmd runs inside cloud-final.service, so ordering after it makes the
@@ -41,6 +43,9 @@ let
     [Service]
     ExecStart=/bin/bash /usr/local/sbin/nixos-test-backdoor
     KillSignal=SIGHUP
+    # an unconfined root shell, as an admin's login: some SELinux policies
+    # confine services, so that `su` fails. `-`: ignored without SELinux.
+    SELinuxContext=-unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
     [Install]
     WantedBy=multi-user.target
   '';

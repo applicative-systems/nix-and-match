@@ -44,6 +44,18 @@ in
         guest.succeed("systemd-run --unit=web python3 -m http.server 8000 -d /etc")
         server.wait_until_succeeds("curl -sf http://guest:8000/os-release | grep PRETTY_NAME")
 
+    with subtest("root shell can switch users"):
+        # an unconfined shell, also where SELinux confines services
+        guest.succeed("useradd --create-home testuser")
+        guest.succeed("su - testuser -c id | grep testuser")
+        guest.succeed("su - testuser -c 'echo $HOME' | grep -x /home/testuser")
+
+    with subtest("login shells read /etc/profile.d"):
+        # as installers that set PATH there expect
+        guest.succeed("echo 'export FROM_PROFILE_D=yes' > /etc/profile.d/zz-test.sh")
+        guest.succeed("sh -lc 'echo $FROM_PROFILE_D' | grep -x yes")
+        guest.succeed("su - testuser -c 'echo $FROM_PROFILE_D' | grep -x yes")
+
     with subtest("virtio rng"):
         # device id 4 is the entropy source; whether a driver uses it is up to the distro
         guest.succeed("grep -x 0x0004 /sys/bus/virtio/devices/*/device")
