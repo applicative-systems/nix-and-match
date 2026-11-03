@@ -123,9 +123,21 @@ foreignNodes.web = {
 };
 ```
 
+To run programs built with Nix on a machine, list them in `additionalPaths`.
+The host's Nix store is then shared read-only at `/nix/store`, so they run
+with all their dependencies, also as systemd services and with SELinux:
+
+```nix
+foreignNodes.ubuntu = {
+  image = "ubuntu-24.04";
+  additionalPaths = [ myClient ];
+};
+# testScript: ubuntu.succeed("${myClient}/bin/my-client http://server/")
+```
+
 Oracle Linux's kernel has no virtiofs, so it gets no shared folders: use
 `copy_from_host_via_shell` there. Machines with `provisioner = "none"` don't
-get them either.
+get them either, and neither can use `additionalPaths`.
 
 ## Architectures
 

@@ -151,13 +151,24 @@ let
   sharesCloudConfig =
     shares:
     lib.optionalAttrs (shares != { }) {
-      runcmd = lib.mapAttrsToList (tag: share: [
-        "sh"
-        "-c"
-        "mkdir -p ${share.target} && mount -t virtiofs -o ${
-          if share.writable then "rw" else "ro"
-        } ${tag} ${share.target}"
-      ]) shares;
+      runcmd = lib.mapAttrsToList (
+        tag: share:
+        let
+          mode = if share.writable then "rw" else "ro";
+          # SELinux doesn't let systemd start programs from an unlabeled
+          # file system, so the Nix store gets the label of /usr/bin
+          options =
+            if share.source == builtins.storeDir then
+              "$([ -e /sys/fs/selinux/enforce ] && echo ${mode},context=system_u:object_r:bin_t:s0 || echo ${mode})"
+            else
+              mode;
+        in
+        [
+          "sh"
+          "-c"
+          "mkdir -p ${share.target} && mount -t virtiofs -o ${options} ${tag} ${share.target}"
+        ]
+      ) shares;
     };
 
   # cloud-config parts generated for a guest: network setup, shares, then the shell
@@ -287,6 +298,8 @@ in
       # tag -> { source, target, writable }, as virtualisation.sharedDirectories;
       # `source` is a shell expression
       shares ? { },
+      # store paths the machine uses from the shared Nix store
+      additionalPaths ? [ ],
       userDataFile,
     }:
     let
@@ -341,6 +354,10 @@ in
     in
     pkgs.writeShellScript "run-${name}-vm" ''
       set -eu
+      ${lib.optionalString (additionalPaths != [ ]) ''
+        # referenced, so that they are in the test's sandbox:
+        # ${toString additionalPaths}
+      ''}
       disk="$TMPDIR/${name}.qcow2"
       if [ ! -e "$disk" ]; then
         ${qemu}/bin/qemu-img create -q -f qcow2 -F ${format} -b ${image} "$disk"

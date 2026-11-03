@@ -59,6 +59,7 @@ let
       ip6 = networking.primaryIPv6Address;
       inherit (top.nodes.${name}.virtualisation.test) nodeNumber;
       shares = node.sharedDirectories;
+      inherit (node) additionalPaths;
       userDataFile = userDataFile name node;
     };
 
@@ -206,6 +207,23 @@ let
           example = "+5G";
         };
 
+        additionalPaths = lib.mkOption {
+          description = ''
+            Nix store paths that the machine can use. The host's Nix store is
+            then shared read-only at `/nix/store`, so programs built with Nix
+            run on the machine as they are, with all their dependencies, such
+            as `''${pkgs.hello}/bin/hello` in the test script. Use it to run a
+            client or server built from your project on another distro.
+
+            The machine has no Nix database: the paths are only files, and
+            `nix` on the machine doesn't know about them. Not possible where
+            `sharedDirectories` aren't.
+          '';
+          type = lib.types.listOf lib.types.path;
+          default = [ ];
+          example = lib.literalExpression "[ pkgs.hello ]";
+        };
+
         sharedDirectories = lib.mkOption {
           description = ''
             Host directories shared with the machine over virtiofs, as
@@ -240,6 +258,9 @@ let
             }
           );
           default = { };
+          defaultText = lib.literalMD ''
+            `xchg` and `shared`, and `nix-store` if `additionalPaths` is set
+          '';
           example = lib.literalExpression ''
             {
               # read-only, from the Nix store
@@ -258,8 +279,8 @@ let
         };
       };
 
-      # the same folders as on NixOS test VMs
       config.sharedDirectories = lib.mkIf (canShare config) {
+        # the same folders as on NixOS test VMs
         xchg = {
           source = ''"$TMPDIR"/xchg'';
           target = "/tmp/xchg";
@@ -269,6 +290,11 @@ let
           source = ''"''${SHARED_DIR:-$TMPDIR/xchg}"'';
           target = "/tmp/shared";
           writable = true;
+        };
+        # in the build sandbox, the host's store has only the test's inputs
+        nix-store = lib.mkIf (config.additionalPaths != [ ]) {
+          source = builtins.storeDir;
+          target = builtins.storeDir;
         };
       };
     };
@@ -302,6 +328,15 @@ let
       {
         assertion = lib.elem system catalog.${node.image}.systems;
         message = unavailable name node;
+      }
+      {
+        assertion = canShare node || node.additionalPaths == [ ];
+        message = "foreignNodes.${name}.additionalPaths: ${
+          if p == "none" then
+            "machines with provisioner = \"none\" can't mount the Nix store"
+          else
+            "the kernel of ${node.image} has no virtiofs to share the Nix store"
+        }";
       }
       {
         assertion = canShare node || node.sharedDirectories == { };

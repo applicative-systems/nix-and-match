@@ -1,13 +1,20 @@
 # shared by all images with a cloud-init provisioner
 image:
-{ hostPkgs, ... }:
+{ hostPkgs, lib, ... }:
 let
   inherit ((import ../lib/images.nix { pkgs = hostPkgs; }).${image}) virtiofs;
+  inherit (hostPkgs) hello busybox;
 in
 {
   name = "${image}-interop";
 
-  foreignNodes.guest.image = image;
+  foreignNodes.guest = {
+    inherit image;
+    additionalPaths = lib.optionals virtiofs [
+      hello
+      busybox
+    ];
+  };
 
   nodes.server = {
     networking.firewall.allowedTCPPorts = [ 80 ];
@@ -63,6 +70,14 @@ in
             server.succeed("echo nixos > /tmp/shared/server-file")
             guest.succeed("grep -x nixos /tmp/shared/server-file")
             guest.succeed("findmnt -t virtiofs /tmp/xchg")
+
+        with subtest("programs from the nix store"):
+            guest.succeed("findmnt -t virtiofs -O ro /nix/store")
+            guest.succeed("${hello}/bin/hello | grep -x 'Hello, world!'")
+            # as a service, reachable from nixos
+            guest.succeed("mkdir -p /srv/nix && echo 'served by busybox' > /srv/nix/index.html")
+            guest.succeed("systemd-run --unit=nix-web ${busybox}/bin/busybox httpd -f -p 8080 -h /srv/nix")
+            server.wait_until_succeeds("curl -sf http://guest:8080/ | grep 'served by busybox'", timeout=60)
       ''
     else
       ''
