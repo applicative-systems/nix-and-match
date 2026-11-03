@@ -1,7 +1,7 @@
 # nix-and-match
 
-NixOS VM tests where non-NixOS machines (Ubuntu, AlmaLinux, Talos) run
-alongside NixOS nodes and talk to them over the test network.
+NixOS VM tests where non-NixOS machines run alongside NixOS nodes and talk
+to them over the test network.
 
 Useful when a NixOS service has to work with hosts you don't control,
 such as clients on other distros or appliances like Talos, and you want
@@ -33,7 +33,7 @@ pkgs.testers.runNixOSTest {
 Run the bundled tests with:
 
 ```sh
-nix build .#checks.x86_64-linux.ubuntu -L   # or almalinux, talos
+nix build .#checks.x86_64-linux.debian-13 -L   # one check per image
 ```
 
 ## How
@@ -48,4 +48,22 @@ nix build .#checks.x86_64-linux.ubuntu -L   # or almalinux, talos
 - Talos has no shell. It gets a machine config through `userDataFile` and is
   driven through `talosctl` from a NixOS node.
 
-To add a distro, pin its image in `lib/images.nix` and copy a test from `tests/`.
+## Images
+
+`lib/images.json` is generated. Refresh it from the repository root with:
+
+```sh
+nix run .#update-images                 # all images
+nix run .#update-images -- debian-13    # selected images
+```
+
+The updater reads upstream checksum files, so images aren't downloaded except
+for Talos. Each pin records its `verification`:
+
+- `signature`: the checksum file is signed by a key in `keys/`.
+- `checksum-only`: upstream has no signature, so the hash was read over HTTPS.
+- `none`: upstream has no checksum, so the hash comes from a download.
+
+To add a distro, add an `update_<name>` function to
+`scripts/update-images.sh` and list it in `all`. Its check is then generated
+from `tests/cloud-init.nix`.

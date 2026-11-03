@@ -41,9 +41,34 @@
         }
       ) inputs.nixpkgs.legacyPackages;
 
+      apps = builtins.mapAttrs (_: pkgs: {
+        update-images = {
+          type = "app";
+          program = lib.getExe (
+            pkgs.writeShellApplication {
+              name = "update-images";
+              runtimeInputs = with pkgs; [
+                coreutils
+                curl
+                gawk
+                gnugrep
+                gnupg
+                gnused
+                jq
+                nix
+                openssl
+                xz
+              ];
+              text = builtins.readFile ./scripts/update-images.sh;
+            }
+          );
+        };
+      }) inputs.nixpkgs.legacyPackages;
+
       checks = builtins.mapAttrs (
         system: pkgs:
         let
+          images = lib.attrNames (import ./lib/images.nix { inherit pkgs; });
           mkTest =
             path:
             pkgs.testers.runNixOSTest {
@@ -55,11 +80,14 @@
         in
         {
           formatting = inputs.self.formatter.${system}.check inputs.self;
-
-          ubuntu = mkTest ./tests/ubuntu.nix;
-          almalinux = mkTest ./tests/almalinux.nix;
-          talos = mkTest ./tests/talos.nix;
         }
+        # images are only pinned for x86_64 so far
+        // lib.optionalAttrs (system == "x86_64-linux") (
+          lib.genAttrs (lib.remove "talos-1.14" images) (image: mkTest (import ./tests/cloud-init.nix image))
+          // {
+            "talos-1.14" = mkTest ./tests/talos.nix;
+          }
+        )
       ) inputs.nixpkgs.legacyPackages;
     };
 }

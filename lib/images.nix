@@ -1,35 +1,28 @@
 { pkgs }:
-{
-  "ubuntu-24.04" = {
-    format = "qcow2";
-    image = pkgs.fetchurl {
-      url = "https://cloud-images.ubuntu.com/releases/noble/release-20260911/ubuntu-24.04-server-cloudimg-amd64.img";
-      hash = "sha256-YSssDMG8QTpsuMOP1hF5TK8PK0NsUAE9izeU2xKtc1Q=";
-    };
-  };
-
-  "almalinux-9" = {
-    format = "qcow2";
-    image = pkgs.fetchurl {
-      url = "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-9.8-20260810.x86_64.qcow2";
-      hash = "sha256-a9q2N21G1C5CA6zjcz76/HxdN8fLRDpsx0dQCXAC10s=";
-    };
-  };
-
-  # vanilla factory schematic; bump version and hash together (FOD reuse hides stale urls)
-  "talos-1.14" = rec {
-    version = "1.14.1";
-    format = "raw";
-    image = pkgs.fetchurl {
-      name = "talos-nocloud-amd64.raw";
-      url = "https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v${version}/nocloud-amd64.raw.xz";
-      # hash of the decompressed image, not of the .xz
-      hash = "sha256-uMPfGhiEmD2yXMDC2YEBilkcVCwduuV59COkZw8rD1s=";
-      downloadToTemp = true;
-      nativeBuildInputs = [ pkgs.xz ];
-      postFetch = ''
-        xz -dc "$downloadedFile" > "$out"
-      '';
-    };
-  };
-}
+let
+  inherit (pkgs) lib;
+  inherit (pkgs.stdenv.hostPlatform) system;
+in
+# images.json is generated: use `nix run .#update-images`
+lib.mapAttrs (
+  name: entry:
+  let
+    pin = entry.systems.${system} or (throw "image ${name} is not available for ${system}");
+  in
+  {
+    inherit (entry) format version verification;
+    image = pkgs.fetchurl (
+      {
+        name = "${name}.${entry.format}";
+        inherit (pin) url hash;
+      }
+      // lib.optionalAttrs (entry.compression or null == "xz") {
+        downloadToTemp = true;
+        nativeBuildInputs = [ pkgs.xz ];
+        postFetch = ''
+          xz -dc "$downloadedFile" > "$out"
+        '';
+      }
+    );
+  }
+) (lib.importJSON ./images.json)

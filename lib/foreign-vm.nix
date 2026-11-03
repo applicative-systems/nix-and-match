@@ -36,6 +36,8 @@ let
   backdoorCloudConfig =
     {
       hosts ? "",
+      ip,
+      ip6,
     }:
     "#cloud-config\n"
     + toYAML {
@@ -63,8 +65,31 @@ let
           "--now"
           "serial-getty@hvc0.service"
         ]
+        # no time server on the test network: arch would wait for one forever
+        [
+          "sh"
+          "-c"
+          "systemctl mask --now systemd-time-wait-sync.service || true"
+        ]
       ];
       runcmd = [
+        # amazon's cloud-init loses the addresses if there is more than one
+        [
+          "ip"
+          "address"
+          "replace"
+          "${ip}/24"
+          "dev"
+          "eth0"
+        ]
+        [
+          "ip"
+          "address"
+          "replace"
+          "${ip6}/64"
+          "dev"
+          "eth0"
+        ]
         [
           "systemctl"
           "daemon-reload"
@@ -121,6 +146,8 @@ in
           version = 2;
           ethernets.eth0 = {
             match.macaddress = mac;
+            # amazon's cloud-init crashes if the key isn't the interface's real name
+            set-name = "eth0";
             addresses = [
               "${ip}/24"
               "${ip6}/64"
@@ -134,7 +161,9 @@ in
       set -eu
       disk="$TMPDIR/${name}.qcow2"
       if [ ! -e "$disk" ]; then
-        ${qemu}/bin/qemu-img create -q -f qcow2 -F ${format} -b ${image} "$disk" ${diskSize}
+        ${qemu}/bin/qemu-img create -q -f qcow2 -F ${format} -b ${image} "$disk"
+        # grow only: qemu-img refuses to shrink, which would cut off larger images
+        ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null || true
       fi
       exec ${qemuCommon.qemuBinary qemu} \
         -name ${name} -m ${toString memory} -smp ${toString cores} \

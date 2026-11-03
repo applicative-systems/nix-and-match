@@ -13,19 +13,24 @@ let
     name: node:
     let
       inherit (config.nodes.${name}) networking;
+      ip = networking.primaryIPAddress;
+      ip6 = networking.primaryIPv6Address;
     in
     foreign.mkForeignVM (
       {
-        inherit name;
+        inherit name ip ip6;
         inherit (catalog.${node.image}) image format;
-        ip = networking.primaryIPAddress;
-        ip6 = networking.primaryIPv6Address;
       }
       // (
         if node.userDataFile != null then
           { inherit (node) userDataFile; }
         else
-          { userData = foreign.backdoorCloudConfig { hosts = networking.extraHosts; }; }
+          {
+            userData = foreign.backdoorCloudConfig {
+              inherit ip ip6;
+              hosts = networking.extraHosts;
+            };
+          }
       )
     );
 in
