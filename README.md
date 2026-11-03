@@ -119,3 +119,7 @@ To add a distro, add an `update_<name>` function to
 `scripts/update-images.sh` and list it in `all`. Its check is then generated
 from `tests/cloud-init.nix`. For an image without cloud-init, call
 `PROVISIONER=none pin ...` and write its own test, like `tests/talos.nix`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
