@@ -1,5 +1,8 @@
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  # for examples/nix-on-distros: its installer, as built by Hydra. No `follows`,
+  # so the builds come from cache.nixos.org.
+  inputs.nix.url = "github:NixOS/nix";
 
   outputs =
     inputs:
@@ -68,28 +71,6 @@
             }
           );
         };
-        # pins of the examples, by each example's update.sh
-        update-examples = {
-          type = "app";
-          program = lib.getExe (
-            pkgs.writeShellApplication {
-              name = "update-examples";
-              runtimeInputs = with pkgs; [
-                coreutils
-                curl
-                gawk
-                jq
-                nix
-              ];
-              text = ''
-                for script in examples/*/update.sh; do
-                  # shellcheck disable=SC1090
-                  (source "$script")
-                done
-              '';
-            }
-          );
-        };
       }) inputs.nixpkgs.legacyPackages;
 
       checks = builtins.mapAttrs (
@@ -124,6 +105,7 @@
           # examples: tests of something other than this repository
           // import ./examples/nix-on-distros {
             inherit pkgs;
+            inherit (inputs) nix;
             testModule = inputs.self.testModules.default;
           }
         )

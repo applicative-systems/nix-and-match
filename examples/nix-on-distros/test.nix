@@ -1,4 +1,8 @@
-{ distro, method }:
+{
+  distro,
+  method,
+  nix,
+}:
 {
   config,
   hostPkgs,
@@ -8,25 +12,25 @@
 let
   pkgs = hostPkgs;
   inherit (pkgs.stdenv.hostPlatform) system;
-  pins = lib.importJSON ./pins.json;
-  installer = pins.nix-installer;
   cacheIp = config.nodes.cache.networking.primaryIPAddress;
 
-  # what the cache serves as github.com
-  installerFiles = pkgs.linkFarm "nix-installer-${installer.version}" (
-    map
-      (name: {
-        inherit name;
-        path = pkgs.fetchurl {
-          url = "https://github.com/NixOS/nix-installer/releases/download/${installer.version}/${name}";
-          hash = installer.hashes.${name};
-        };
-      })
-      [
-        "nix-installer.sh"
-        "nix-installer-${system}"
-      ]
-  );
+  # the installer and its script, as Hydra builds them for releases.nixos.org.
+  # The installer contains the Nix it installs.
+  installer = nix.hydraJobs.nixInstaller.${system};
+  version = lib.removePrefix "nix-installer-" installer.name;
+  release = "/nix/nix-${version}";
+
+  # what the cache serves as releases.nixos.org
+  releaseFiles = pkgs.linkFarm "nix-${version}-release" [
+    {
+      name = "nix-installer.sh";
+      path = "${nix.hydraJobs.nixInstallerScript}/nix-installer";
+    }
+    {
+      name = "nix-installer-${system}";
+      path = lib.getExe installer;
+    }
+  ];
 
   # a program from the binary cache, like a project's demo
   demo = pkgs.mitmproxy;
@@ -63,7 +67,7 @@ in
       5000
     ];
 
-    # stands in for artifacts.nixos.org and github.com
+    # stands in for artifacts.nixos.org and releases.nixos.org
     services.nginx = {
       enable = true;
       virtualHosts =
@@ -76,12 +80,10 @@ in
         in
         {
           "artifacts.nixos.org" = tls // {
-            locations."= /nix-installer".return =
-              "302 https://github.com/NixOS/nix-installer/releases/download/${installer.version}/nix-installer.sh";
+            locations."= /nix-installer".return = "302 https://releases.nixos.org${release}/nix-installer.sh";
           };
-          "github.com" = tls // {
-            locations."/NixOS/nix-installer/releases/download/${installer.version}/".alias =
-              "${installerFiles}/";
+          "releases.nixos.org" = tls // {
+            locations."${release}/".alias = "${releaseFiles}/";
           };
         };
     };
@@ -102,7 +104,7 @@ in
         {
           path = "/etc/hosts";
           append = true;
-          content = "${cacheIp} artifacts.nixos.org github.com\n";
+          content = "${cacheIp} artifacts.nixos.org releases.nixos.org\n";
         }
         {
           path = "/etc/nix-demo/build.nix";
@@ -140,7 +142,9 @@ in
         # the installer only warns when nix isn't usable from a new shell
         assert "SelfTest" not in output, "the installer's self-test failed"
         guest.succeed("systemctl is-active nix-daemon.socket || systemctl is-active nix-daemon.service")
-        guest.log(user("nix --version"))
+        # the Nix from the flake input
+        installed = user("nix --version").strip()
+        assert installed == "nix (Nix) ${version}", f"installed {installed}"
 
     with subtest("an ordinary user builds in the sandbox"):
         out = user("nix-build --no-out-link /etc/nix-demo/build.nix").strip()

@@ -1,7 +1,12 @@
 # Nix installed on other distros the way their users install it, then used to
 # build something and to run a program from a binary cache. One check per
 # distro and install method: nix-<method>-<distro>.
-{ pkgs, testModule }:
+{
+  pkgs,
+  # the NixOS/nix flake, whose Hydra jobs build the installer
+  nix,
+  testModule,
+}:
 let
   inherit (pkgs) lib;
   inherit (pkgs.stdenv.hostPlatform) system;
@@ -26,7 +31,7 @@ lib.listToAttrs (
         pkgs.testers.runNixOSTest {
           imports = [
             testModule
-            (import ./test.nix { inherit distro method; })
+            (import ./test.nix { inherit distro method nix; })
           ];
         }
       )
