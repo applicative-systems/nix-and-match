@@ -1,23 +1,20 @@
 { pkgs }:
 let
   inherit (pkgs) lib;
-  inherit (pkgs.stdenv.hostPlatform) system;
 in
 # images.json is generated: use `nix run .#update-images`
-lib.mapAttrs (
-  name: entry:
-  let
-    pin = entry.systems.${system} or (throw "image ${name} is not available for ${system}");
-  in
-  {
-    inherit (entry)
-      format
-      provisioner
-      version
-      verification
-      ;
+lib.mapAttrs (name: entry: {
+  inherit (entry) format provisioner verification;
+
+  # systems the image is published for
+  systems = lib.attrNames entry.systems;
+
+  # per system: `version` and the decompressed `image`
+  pins = lib.mapAttrs (_: pin: {
+    inherit (pin) version;
     image = pkgs.fetchurl (
       {
+        # the hash already differs per system
         name = "${name}.${entry.format}";
         inherit (pin) url hash;
       }
@@ -29,5 +26,5 @@ lib.mapAttrs (
         '';
       }
     );
-  }
-) (lib.importJSON ./images.json)
+  }) entry.systems;
+}) (lib.importJSON ./images.json)

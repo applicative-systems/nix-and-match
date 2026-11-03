@@ -36,6 +36,8 @@ nix build .#checks.x86_64-linux.debian-13 -L      # one check per image
 nix build .#checks.x86_64-linux.provisioners -L   # all provisioners at once
 ```
 
+The same checks exist for `aarch64-linux` hosts, without Arch Linux.
+
 ## How
 
 - Each entry in `foreignNodes` boots a pinned cloud image on a copy-on-write
@@ -99,6 +101,13 @@ are already in the image.
 
 `tests/provisioners.nix` uses every combination.
 
+## Architectures
+
+Images are pinned for `x86_64-linux` and `aarch64-linux`, except Arch Linux,
+which only publishes x86_64 images. Guests always have the host's system and
+run with KVM, so tests for aarch64 guests run on aarch64 hosts. There is no
+emulation of other architectures.
+
 ## Images
 
 `lib/images.json` is generated. Refresh it from the repository root with:
@@ -116,7 +125,9 @@ for Talos. Each pin records its `verification`:
 - `none`: upstream has no checksum, so the hash comes from a download.
 
 To add a distro, add an `update_<name>` function to
-`scripts/update-images.sh` and list it in `all`. Its check is then generated
+`scripts/update-images.sh` and list it in `all`. It is called once per system
+in `$system`, and `systems_of` lists the systems if it isn't published for all
+of them. Its check is then generated
 from `tests/cloud-init.nix`. For an image without cloud-init, call
 `PROVISIONER=none pin ...` and write its own test, like `tests/talos.nix`.
 

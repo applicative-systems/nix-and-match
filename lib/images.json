@@ -3,25 +3,35 @@
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-0IoP4jsFRZOlCQ/SYUbWDc+gu8AZPLwERRy4SV5ZBpQ=",
+        "url": "https://repo.almalinux.org/almalinux/9/cloud/aarch64/images/AlmaLinux-9-GenericCloud-9.8-20261102.aarch64.qcow2",
+        "version": "9.8-20261102"
+      },
       "x86_64-linux": {
         "hash": "sha256-b5SIFFjf6WZHRUSxLobQeNgaYARXGIBF0xewzjw73Kc=",
-        "url": "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-9.8-20261102.x86_64.qcow2"
+        "url": "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-9.8-20261102.x86_64.qcow2",
+        "version": "9.8-20261102"
       }
     },
-    "verification": "signature",
-    "version": "9.8-20261102"
+    "verification": "signature"
   },
   "amazon-2023": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-kx4aBwULUqv5ClLg/X7ulR95Zy1iFPIYpwfiEv2W1xc=",
+        "url": "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20261102.0/kvm-arm64/al2023-kvm-2023.12.20261102.0-kernel-6.1-arm64.xfs.gpt.qcow2",
+        "version": "2023.12.20261102.0"
+      },
       "x86_64-linux": {
         "hash": "sha256-C3RXokqUZ60OkjgiwU8qtwa7xcvWhUTgCvDYJH8iW0o=",
-        "url": "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20261102.0/kvm/al2023-kvm-2023.12.20261102.0-kernel-6.1-x86_64.xfs.gpt.qcow2"
+        "url": "https://cdn.amazonlinux.com/al2023/os-images/2023.12.20261102.0/kvm/al2023-kvm-2023.12.20261102.0-kernel-6.1-x86_64.xfs.gpt.qcow2",
+        "version": "2023.12.20261102.0"
       }
     },
-    "verification": "signature",
-    "version": "2023.12.20261102.0"
+    "verification": "signature"
   },
   "arch": {
     "format": "qcow2",
@@ -29,95 +39,130 @@
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-eU60iJs54fDtfVrpmLKh7SE324z4w0ds8pYsdDfssAM=",
-        "url": "https://geo.mirror.pkgbuild.com/images/v20261101.620452/Arch-Linux-x86_64-cloudimg-20261101.620452.qcow2"
+        "url": "https://geo.mirror.pkgbuild.com/images/v20261101.620452/Arch-Linux-x86_64-cloudimg-20261101.620452.qcow2",
+        "version": "20261101.620452"
       }
     },
-    "verification": "signature",
-    "version": "20261101.620452"
+    "verification": "signature"
   },
   "debian-13": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha512-capdXbyz2ez+lrw/bdQbaAWgpByFIgSjJ0fSMLZLlZEil/tFOxGmAx/VTYSgoKQw4TfQfmmG3J68nUFIO+ADxA==",
+        "url": "https://cloud.debian.org/images/cloud/trixie/20261026-2643/debian-13-genericcloud-arm64-20261026-2643.qcow2",
+        "version": "20261026-2643"
+      },
       "x86_64-linux": {
         "hash": "sha512-Os4Y4zvdA27bSdH3k0K9AdKrmA41GU7bC0EENc1UNTjShqC9E7uwg194YjBuPThc4vanDY7PC9lhERFmrbwbjg==",
-        "url": "https://cloud.debian.org/images/cloud/trixie/20261026-2643/debian-13-genericcloud-amd64-20261026-2643.qcow2"
+        "url": "https://cloud.debian.org/images/cloud/trixie/20261026-2643/debian-13-genericcloud-amd64-20261026-2643.qcow2",
+        "version": "20261026-2643"
       }
     },
-    "verification": "checksum-only",
-    "version": "20261026-2643"
+    "verification": "checksum-only"
   },
   "fedora-44": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-VcYKO4DTYWoIcFr9BFnnX+nwPFSrp6RuQAKkGnL6DVs=",
+        "url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-44-1.7.aarch64.qcow2",
+        "version": "44-1.7"
+      },
       "x86_64-linux": {
         "hash": "sha256-KGgP5bNxpaguv0OjGSbghqFo5ZlJ0DlpxQk+cHH5C38=",
-        "url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2"
+        "url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2",
+        "version": "44-1.7"
       }
     },
-    "verification": "signature",
-    "version": "44-1.7"
+    "verification": "signature"
   },
   "opensuse-tumbleweed": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-hUqUBA/faZWCdFEG8jPas8o6g4qoyFG0z0P59WGkwWY=",
+        "url": "https://download.opensuse.org/ports/aarch64/tumbleweed/appliances/openSUSE-Tumbleweed-Minimal-VM.aarch64-1.0.0-Cloud-Snapshot20261020.qcow2",
+        "version": "20261020"
+      },
       "x86_64-linux": {
         "hash": "sha256-rSN128WHGkEQa7QhI5QP+xNS0MEbGtahRC9WVmAl77E=",
-        "url": "https://download.opensuse.org/tumbleweed/appliances/openSUSE-Tumbleweed-Minimal-VM.x86_64-1.0.0-Cloud-Snapshot20261031.qcow2"
+        "url": "https://download.opensuse.org/tumbleweed/appliances/openSUSE-Tumbleweed-Minimal-VM.x86_64-1.0.0-Cloud-Snapshot20261031.qcow2",
+        "version": "20261031"
       }
     },
-    "verification": "signature",
-    "version": "20261031"
+    "verification": "signature"
   },
   "oracle-9": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-HsM3bXT386CLYO5UqGlmfqkySYR6tXb8A/BTEMYFzrI=",
+        "url": "https://yum.oracle.com/templates/OracleLinux/OL9/u8/aarch64/OL9U8_aarch64-kvm-b181.qcow2",
+        "version": "OL9U8_aarch64-kvm-b181"
+      },
       "x86_64-linux": {
         "hash": "sha256-sSEDORMnq+6AkGhnWcDWLayaevK/D0X99rDQhaD7tSs=",
-        "url": "https://yum.oracle.com/templates/OracleLinux/OL9/u8/x86_64/OL9U8_x86_64-kvm-b293.qcow2"
+        "url": "https://yum.oracle.com/templates/OracleLinux/OL9/u8/x86_64/OL9U8_x86_64-kvm-b293.qcow2",
+        "version": "OL9U8_x86_64-kvm-b293"
       }
     },
-    "verification": "checksum-only",
-    "version": "OL9U8_x86_64-kvm-b293"
+    "verification": "checksum-only"
   },
   "rocky-9": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-JGkqRE8fC4u5U3XDjItD+AmaEVNHYjaRviwzC0DIof4=",
+        "url": "https://dl.rockylinux.org/pub/rocky/9/images/aarch64/Rocky-9-GenericCloud-Base-9.8-20260525.0.aarch64.qcow2",
+        "version": "9.8-20260525.0"
+      },
       "x86_64-linux": {
         "hash": "sha256-ksIGzG95DGFYMkfu/oeJD4goQgZiwXys8kfOx4q07sg=",
-        "url": "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-9.8-20260525.0.x86_64.qcow2"
+        "url": "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-9.8-20260525.0.x86_64.qcow2",
+        "version": "9.8-20260525.0"
       }
     },
-    "verification": "signature",
-    "version": "9.8-20260525.0"
+    "verification": "signature"
   },
   "talos-1.14": {
     "compression": "xz",
     "format": "raw",
     "provisioner": "none",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-sbM0c7d6xyPGgT/ImugyKR3RP1ikpxxItbWSTKRyvhk=",
+        "url": "https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v1.14.5/nocloud-arm64.raw.xz",
+        "version": "1.14.5"
+      },
       "x86_64-linux": {
         "hash": "sha256-oaAQNeY65Vx/e9RcmBHqGqY6jkNoilPY4zbfFGXyhqs=",
-        "url": "https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v1.14.5/nocloud-amd64.raw.xz"
+        "url": "https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v1.14.5/nocloud-amd64.raw.xz",
+        "version": "1.14.5"
       }
     },
-    "verification": "none",
-    "version": "1.14.5"
+    "verification": "none"
   },
   "ubuntu-24.04": {
     "format": "qcow2",
     "provisioner": "cloud-init",
     "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-UOJOH7eeiRFuk52Qqnc4969IxEL6G8JRATHgs5xQNI4=",
+        "url": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-arm64.img",
+        "version": "20261017"
+      },
       "x86_64-linux": {
         "hash": "sha256-BOjyRhoWpE54o3AoRHHylhbN2brxiT3yWAe3H5hbbJQ=",
-        "url": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img"
+        "url": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img",
+        "version": "20261017"
       }
     },
-    "verification": "signature",
-    "version": "20261017"
+    "verification": "signature"
   }
 }

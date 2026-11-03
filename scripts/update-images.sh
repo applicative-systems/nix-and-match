@@ -11,7 +11,6 @@
 
 catalog=lib/images.json
 keys=keys
-system=x86_64-linux
 all=(
   almalinux-9
   amazon-2023
@@ -24,6 +23,11 @@ all=(
   talos-1.14
   ubuntu-24.04
 )
+# systems an image is published for, if not all of them
+declare -A systems_of=(
+  [arch]=x86_64-linux
+)
+all_systems="x86_64-linux aarch64-linux"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -35,6 +39,21 @@ fetch() {
 
 save() {
   fetch -o "$work/$2" "$1"
+}
+
+# architecture names used by upstream for the system being updated
+rpm_arch() {
+  case $system in
+  x86_64-linux) echo x86_64 ;;
+  aarch64-linux) echo aarch64 ;;
+  esac
+}
+
+deb_arch() {
+  case $system in
+  x86_64-linux) echo amd64 ;;
+  aarch64-linux) echo arm64 ;;
+  esac
 }
 
 # verify_gpg <key file> <gpgv arguments>
@@ -65,7 +84,8 @@ newest() {
 }
 
 # pin <name> <version> <url> <sha256|sha512> <hex hash> <verification> [<compression>]
-# Images without cloud-init are called as `PROVISIONER=none pin ...`.
+# pins the image for $system. Images without cloud-init are called as
+# `PROVISIONER=none pin ...`.
 pin() {
   local name=$1 version=$2 url=$3 algo=$4 hex=$5 verification=$6 compression=${7:-}
   local sri format=qcow2 provisioner=${PROVISIONER:-cloud-init}
@@ -79,34 +99,40 @@ pin() {
     --arg hash "$sri" --arg format "$format" --arg verification "$verification" \
     --arg compression "$compression" --arg provisioner "$provisioner" '
     .[$name] = {
-      $version, $format, $verification, $provisioner,
-      systems: (.[$name].systems // {} | .[$system] = { $url, $hash })
+      $format, $verification, $provisioner,
+      systems: (.[$name].systems // {} | .[$system] = { $version, $url, $hash })
     } + (if $compression == "" then {} else { $compression } end)
   ' "$catalog" >"$work/catalog.json"
   cp "$work/catalog.json" "$catalog"
-  echo "$name: $version"
+  echo "$name ($system): $version"
 }
 
 update_almalinux-9() {
-  local base=https://repo.almalinux.org/almalinux/9/cloud/x86_64/images file
+  local arch base file
+  arch=$(rpm_arch)
+  base=https://repo.almalinux.org/almalinux/9/cloud/$arch/images
   save "$base/CHECKSUM" sums
   save "$base/CHECKSUM.asc" sums.asc
   verify_gpg almalinux-9.asc "$work/sums.asc" "$work/sums"
-  file=$(newest 'AlmaLinux-9-GenericCloud-9\.[0-9]+-[0-9]{8}\.x86_64\.qcow2' <"$work/sums")
-  pin almalinux-9 "$(sed -E 's/^AlmaLinux-9-GenericCloud-(.*)\.x86_64\.qcow2$/\1/' <<<"$file")" \
+  file=$(newest "AlmaLinux-9-GenericCloud-9\.[0-9]+-[0-9]{8}\.$arch\.qcow2" <"$work/sums")
+  pin almalinux-9 "$(sed -E "s/^AlmaLinux-9-GenericCloud-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
     "$base/$file" sha256 "$(checksum_of "$work/sums" "$file")" signature
 }
 
 update_amazon-2023() {
-  local latest base file
+  local latest base file arch dir=kvm
+  arch=$(rpm_arch)
+  if [[ $arch == aarch64 ]]; then
+    arch=arm64 dir=kvm-arm64
+  fi
   latest=$(curl -fsSIL --retry 3 --max-time 30 -o /dev/null -w '%{url_effective}' \
     https://cdn.amazonlinux.com/al2023/os-images/latest/SHA256SUMS)
-  base=${latest%/SHA256SUMS}/kvm
+  base=${latest%/SHA256SUMS}/$dir
   save "$base/SHA256SUMS" sums
   save "$base/SHA256SUMS.RSASSA_PKCS1_V1_5_SHA_256" sums.sig
   openssl dgst -sha256 -verify "$keys/amazon-2023.pem" -signature "$work/sums.sig" "$work/sums" >/dev/null
-  file=$(newest 'al2023-kvm-[^ ]*-x86_64\.xfs\.gpt\.qcow2' <"$work/sums")
-  pin amazon-2023 "$(basename "${base%/kvm}")" "$base/$file" sha256 \
+  file=$(newest "al2023-kvm-[^ ]*-$arch\.xfs\.gpt\.qcow2" <"$work/sums")
+  pin amazon-2023 "$(basename "${base%/"$dir"}")" "$base/$file" sha256 \
     "$(checksum_of "$work/sums" "$file")" signature
 }
 
@@ -125,27 +151,32 @@ update_arch() {
 update_debian-13() {
   local mirror=https://cloud.debian.org/images/cloud/trixie version file
   version=$(fetch "$mirror/" | newest '[0-9]{8}-[0-9]{4}')
-  file=debian-13-genericcloud-amd64-$version.qcow2
+  file=debian-13-genericcloud-$(deb_arch)-$version.qcow2
   save "$mirror/$version/SHA512SUMS" sums
   pin debian-13 "$version" "$mirror/$version/$file" sha512 \
     "$(checksum_of "$work/sums" "$file")" checksum-only
 }
 
 update_fedora-44() {
-  local base=https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images sums file
-  sums=$(fetch "$base/" | newest 'Fedora-Cloud-44-[0-9.]+-x86_64-CHECKSUM')
+  local arch base sums file
+  arch=$(rpm_arch)
+  base=https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/$arch/images
+  sums=$(fetch "$base/" | newest "Fedora-Cloud-44-[0-9.]+-$arch-CHECKSUM")
   save "$base/$sums" sums.signed
   # only trust what is inside the signature, not text around it
   verify_gpg fedora.asc --output "$work/sums" "$work/sums.signed"
-  file=$(newest 'Fedora-Cloud-Base-Generic-44-[0-9.]+\.x86_64\.qcow2' <"$work/sums")
-  pin fedora-44 "$(sed -E 's/^Fedora-Cloud-Base-Generic-(.*)\.x86_64\.qcow2$/\1/' <<<"$file")" \
+  file=$(newest "Fedora-Cloud-Base-Generic-44-[0-9.]+\.$arch\.qcow2" <"$work/sums")
+  pin fedora-44 "$(sed -E "s/^Fedora-Cloud-Base-Generic-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
     "$base/$file" sha256 "$(checksum_of "$work/sums" "$file")" signature
 }
 
 update_opensuse-tumbleweed() {
-  local base=https://download.opensuse.org/tumbleweed/appliances file
+  local arch base file
+  arch=$(rpm_arch)
+  base=https://download.opensuse.org/tumbleweed/appliances
+  [[ $arch == x86_64 ]] || base=https://download.opensuse.org/ports/$arch/tumbleweed/appliances
   file=$(fetch "$base/?P=*Minimal-VM*Cloud*" |
-    newest 'openSUSE-Tumbleweed-Minimal-VM\.x86_64-[0-9.]+-Cloud-Snapshot[0-9]{8}\.qcow2')
+    newest "openSUSE-Tumbleweed-Minimal-VM\.$arch-[0-9.]+-Cloud-Snapshot[0-9]{8}\.qcow2")
   save "$base/$file.sha256" sums
   save "$base/$file.sha256.asc" sums.asc
   verify_gpg opensuse.asc "$work/sums.asc" "$work/sums"
@@ -154,9 +185,10 @@ update_opensuse-tumbleweed() {
 }
 
 update_oracle-9() {
-  local page url hash file
+  local arch page url hash file
+  arch=$(rpm_arch)
   page=$(fetch https://yum.oracle.com/oracle-linux-templates.html)
-  url=$(newest 'https://[^"]*/OL9/u[0-9]+/x86_64/OL9U[0-9]+_x86_64-kvm-b[0-9]+\.qcow2' <<<"$page")
+  url=$(newest "https://[^\"]*/OL9/u[0-9]+/$arch/OL9U[0-9]+_$arch-kvm-b[0-9]+\.qcow2" <<<"$page")
   file=$(basename "$url")
   # a row's hashes follow its links
   hash=$(awk -v file="$file" '
@@ -167,12 +199,14 @@ update_oracle-9() {
 }
 
 update_rocky-9() {
-  local base=https://dl.rockylinux.org/pub/rocky/9/images/x86_64 file
+  local arch base file
+  arch=$(rpm_arch)
+  base=https://dl.rockylinux.org/pub/rocky/9/images/$arch
   save "$base/CHECKSUM" sums
   save "$base/CHECKSUM.asc" sums.asc
   verify_gpg rocky-9.asc "$work/sums.asc" "$work/sums"
-  file=$(newest 'Rocky-9-GenericCloud-Base-9\.[0-9]+-[0-9.]+\.x86_64\.qcow2' <"$work/sums")
-  pin rocky-9 "$(sed -E 's/^Rocky-9-GenericCloud-Base-(.*)\.x86_64\.qcow2$/\1/' <<<"$file")" \
+  file=$(newest "Rocky-9-GenericCloud-Base-9\.[0-9]+-[0-9.]+\.$arch\.qcow2" <"$work/sums")
+  pin rocky-9 "$(sed -E "s/^Rocky-9-GenericCloud-Base-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
     "$base/$file" sha256 "$(checksum_of "$work/sums" "$file")" signature
 }
 
@@ -184,19 +218,19 @@ update_talos-1.14() {
   version=$(fetch 'https://api.github.com/repos/siderolabs/talos/releases?per_page=100' |
     jq -r '.[] | select(.prerelease | not) | .tag_name' | newest '^v1\.14\.[0-9]+$')
   version=${version#v}
-  if [[ $(jq -r '."talos-1.14".version' "$catalog") == "$version" ]]; then
-    echo "talos-1.14: $version"
+  if [[ $(jq -r --arg system "$system" '."talos-1.14".systems[$system].version' "$catalog") == "$version" ]]; then
+    echo "talos-1.14 ($system): $version"
     return
   fi
-  url=https://factory.talos.dev/image/$schematic/v$version/nocloud-amd64.raw.xz
+  url=https://factory.talos.dev/image/$schematic/v$version/nocloud-$(deb_arch).raw.xz
   # hash of the decompressed image, not of the .xz
   hash=$(curl -fsSL --retry 3 "$url" | xz -dc | sha256sum | cut -d ' ' -f 1)
   PROVISIONER=none pin talos-1.14 "$version" "$url" sha256 "$hash" none xz
 }
 
 update_ubuntu-24.04() {
-  local mirror=https://cloud-images.ubuntu.com/releases/noble version base
-  local file=ubuntu-24.04-server-cloudimg-amd64.img
+  local mirror=https://cloud-images.ubuntu.com/releases/noble version base file
+  file=ubuntu-24.04-server-cloudimg-$(deb_arch).img
   version=$(fetch "$mirror/" | newest 'release-[0-9]{8}')
   base=$mirror/$version
   save "$base/SHA256SUMS" sums
@@ -211,19 +245,22 @@ if [[ ! -f $catalog ]]; then
   exit 1
 fi
 
-# one image runs directly; several run as separate processes, so that one
-# broken upstream does not stop the others
-if [[ $# -eq 1 ]]; then
+# one image and system run directly; anything else runs each of them as a
+# separate process, so that one broken upstream does not stop the others
+if [[ $# -eq 2 && $2 == *-linux ]]; then
+  system=$2
   "update_$1"
   exit
 fi
 
 failed=()
 for name in "${@:-${all[@]}}"; do
-  "$0" "$name" || failed+=("$name")
+  for system in ${systems_of[$name]:-$all_systems}; do
+    "$0" "$name" "$system" || failed+=("$name ($system)")
+  done
 done
 
 if [[ ${#failed[@]} -gt 0 ]]; then
-  echo "failed: ${failed[*]}" >&2
+  printf 'failed: %s\n' "${failed[@]}" >&2
   exit 1
 fi

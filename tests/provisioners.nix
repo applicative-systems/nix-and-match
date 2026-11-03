@@ -8,7 +8,7 @@ let
 
   talosConfig = import ./talos-config.nix {
     inherit pkgs;
-    inherit (images."talos-1.14") version;
+    inherit (images."talos-1.14".pins.${pkgs.stdenv.hostPlatform.system}) version;
     ip = talosIp;
     timeServer = serverIp;
   };

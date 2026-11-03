@@ -2,19 +2,32 @@
 let
   inherit (pkgs) lib;
   toYAML = lib.generators.toYAML { };
-  qemuCommon = import "${pkgs.path}/nixos/lib/qemu-common.nix" {
-    inherit lib;
-    inherit (pkgs) stdenv;
-  };
+  inherit (pkgs.stdenv.hostPlatform) system;
+  qemu = pkgs.qemu_test;
+
+  # guests always have the host's system and run with KVM
+  machine =
+    {
+      x86_64-linux = {
+        args = "-machine accel=kvm:tcg -cpu max";
+        serial = "ttyS0";
+      };
+      aarch64-linux = {
+        # cloud images boot with UEFI
+        args = "-machine virt,gic-version=max,accel=kvm:tcg -cpu max -bios ${qemu}/share/qemu/edk2-aarch64-code.fd";
+        serial = "ttyAMA0";
+      };
+    }
+    .${system} or (throw "foreign nodes are not supported on ${system}");
 
   # same wire protocol as nixos/modules/testing/test-instrumentation.nix
-  backdoorScript = ''
+  backdoorScript = serial: ''
     #!/bin/bash
     export USER=root HOME=/root PAGER= SYSTEMD_PAGER=
     [ -e /etc/profile ] && source /etc/profile
     cd /tmp
     exec < /dev/hvc0 > /dev/hvc0
-    while ! exec 2> /dev/ttyS0; do sleep 0.1; done
+    while ! exec 2> /dev/${serial}; do sleep 0.1; done
     echo "connecting to host..." >&2
     stty -F /dev/hvc0 raw -echo
     echo "Spawning backdoor root shell..."
@@ -23,10 +36,10 @@ let
 
   # runcmd runs inside cloud-final.service, so ordering after it makes the
   # shell, and with it the first `succeed`, wait until provisioning is done
-  backdoorUnit = ''
+  backdoorUnit = serial: ''
     [Unit]
-    Requires=dev-hvc0.device dev-ttyS0.device
-    After=dev-hvc0.device dev-ttyS0.device cloud-final.service
+    Requires=dev-hvc0.device dev-${serial}.device
+    After=dev-hvc0.device dev-${serial}.device cloud-final.service
     # keep the shell when the test switches targets, e.g. to rescue.target
     IgnoreOnIsolate=true
     [Service]
@@ -101,17 +114,17 @@ let
       ];
     };
 
-  # the test driver's root shell on hvc0
+  # the test driver's root shell on hvc0, logging to the serial console
   shellCloudConfig = {
     write_files = [
       {
         path = "/usr/local/sbin/nixos-test-backdoor";
         permissions = "0755";
-        content = backdoorScript;
+        content = backdoorScript machine.serial;
       }
       {
         path = "/etc/systemd/system/nixos-test-backdoor.service";
-        content = backdoorUnit;
+        content = backdoorUnit machine.serial;
       }
     ];
     # systemd-getty-generator would otherwise grab hvc0
@@ -275,7 +288,6 @@ in
           };
         };
       };
-      qemu = pkgs.qemu_test;
     in
     pkgs.writeShellScript "run-${name}-vm" ''
       set -eu
@@ -286,7 +298,7 @@ in
         ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null ||
           echo "${name}: disk stays at the image's size, which is larger than ${diskSize}" >&2
       fi
-      exec ${qemuCommon.qemuBinary qemu} \
+      exec ${qemu}/bin/qemu-system-${pkgs.stdenv.hostPlatform.qemuArch} ${machine.args} \
         -name ${name} -m ${toString memorySize} -smp ${toString cores} \
         -device virtio-rng-pci \
         -drive file="$disk",if=virtio \

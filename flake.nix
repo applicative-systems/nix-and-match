@@ -5,6 +5,11 @@
     inputs:
     let
       inherit (inputs.nixpkgs) lib;
+      # hosts that run foreign nodes, see `machine` in lib/foreign-vm.nix
+      foreignSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
     in
     {
       testModules.default = ./lib/module.nix;
@@ -69,7 +74,10 @@
         system: pkgs:
         let
           images = import ./lib/images.nix { inherit pkgs; };
-          cloudInitImages = lib.attrNames (lib.filterAttrs (_: i: i.provisioner == "cloud-init") images);
+          # each host only tests the images published for its own system
+          cloudInitImages = lib.attrNames (
+            lib.filterAttrs (_: i: i.provisioner == "cloud-init" && lib.elem system i.systems) images
+          );
           mkTest =
             path:
             pkgs.testers.runNixOSTest {
@@ -82,8 +90,7 @@
         {
           formatting = inputs.self.formatter.${system}.check inputs.self;
         }
-        # images are only pinned for x86_64 so far
-        // lib.optionalAttrs (system == "x86_64-linux") (
+        // lib.optionalAttrs (lib.elem system foreignSystems) (
           lib.genAttrs cloudInitImages (image: mkTest (import ./tests/cloud-init.nix image))
           // {
             "talos-1.14" = mkTest ./tests/talos.nix;

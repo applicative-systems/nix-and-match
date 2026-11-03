@@ -8,7 +8,7 @@ let
   # no shell on talos: it gets a machine config via nocloud user-data and is driven through its API
   talosConfig = import ./talos-config.nix {
     inherit pkgs ip;
-    inherit (images."talos-1.14") version;
+    inherit (images."talos-1.14".pins.${pkgs.stdenv.hostPlatform.system}) version;
     timeServer = clientIp;
   };
 in

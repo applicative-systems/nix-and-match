@@ -9,6 +9,7 @@ let
   top = config;
   foreign = import ./foreign-vm.nix { pkgs = hostPkgs; };
   catalog = import ./images.nix { pkgs = hostPkgs; };
+  inherit (hostPkgs.stdenv.hostPlatform) system;
 
   userDataFile =
     name: node:
@@ -29,15 +30,27 @@ let
     }
     .${node.provisioner};
 
+  unavailable =
+    name: node:
+    "foreignNodes.${name}: image ${node.image} is not available for ${system}, only for ${
+      lib.concatStringsSep ", " catalog.${node.image}.systems
+    }";
+
   mkStartScript =
     name: node:
     let
       inherit (top.nodes.${name}) networking;
+      entry = catalog.${node.image};
     in
     foreign.mkForeignVM {
       inherit name;
-      inherit (catalog.${node.image}) image format;
-      inherit (node) memorySize cores diskSize;
+      inherit (entry) format;
+      inherit (entry.pins.${system} or (throw (unavailable name node))) image;
+      inherit (node)
+        memorySize
+        cores
+        diskSize
+        ;
       ip = networking.primaryIPAddress;
       ip6 = networking.primaryIPv6Address;
       userDataFile = userDataFile name node;
@@ -51,6 +64,11 @@ let
           description = ''
             Image to boot, from `lib/images.json`. Refresh the pins with
             `nix run .#update-images`.
+
+            The guest has the host's system, so the image must be published
+            for it: Arch Linux, for example, is only published for
+            `x86_64-linux`. Run tests for other architectures on hosts of that
+            architecture.
           '';
           type = lib.types.enum (lib.attrNames catalog);
           example = "debian-13";
@@ -209,6 +227,10 @@ let
       {
         assertion = p != "none" || !node.shell;
         message = "foreignNodes.${name}.shell is not possible with provisioner = \"none\": nothing installs the shell";
+      }
+      {
+        assertion = lib.elem system catalog.${node.image}.systems;
+        message = unavailable name node;
       }
       {
         assertion = p == "none" || catalog.${node.image}.provisioner == "cloud-init";

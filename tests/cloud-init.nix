@@ -1,5 +1,7 @@
 # shared by all images with a cloud-init provisioner
-image: {
+image:
+{ hostPkgs, ... }:
+{
   name = "${image}-interop";
 
   foreignNodes.guest.image = image;
@@ -20,6 +22,8 @@ image: {
     guest.log(guest.succeed("cloud-init status --long || true"))
     guest.fail("cloud-init status | grep running")
     guest.log(guest.succeed("grep PRETTY_NAME /etc/os-release"))
+    # the guest has the host's architecture
+    guest.succeed("test $(uname -m) = ${hostPkgs.stdenv.hostPlatform.uname.processor}")
 
     with subtest("foreign -> nixos"):
         guest.succeed("curl -sf http://server/ | grep 'hello from nixos'")
