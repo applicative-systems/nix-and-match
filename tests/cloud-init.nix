@@ -16,8 +16,9 @@ image: {
     start_all()
 
     server.wait_for_unit("nginx.service")
-    # 2 means done with recoverable errors, such as fedora failing to set the hostname
-    guest.succeed("cloud-init status --wait || [ $? -eq 2 ]")
+    # the shell only starts once cloud-init is done
+    guest.log(guest.succeed("cloud-init status --long || true"))
+    guest.fail("cloud-init status | grep running")
     guest.log(guest.succeed("grep PRETTY_NAME /etc/os-release"))
 
     with subtest("foreign -> nixos"):

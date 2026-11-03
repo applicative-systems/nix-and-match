@@ -68,7 +68,8 @@
       checks = builtins.mapAttrs (
         system: pkgs:
         let
-          images = lib.attrNames (import ./lib/images.nix { inherit pkgs; });
+          images = import ./lib/images.nix { inherit pkgs; };
+          cloudInitImages = lib.attrNames (lib.filterAttrs (_: i: i.provisioner == "cloud-init") images);
           mkTest =
             path:
             pkgs.testers.runNixOSTest {
@@ -83,9 +84,10 @@
         }
         # images are only pinned for x86_64 so far
         // lib.optionalAttrs (system == "x86_64-linux") (
-          lib.genAttrs (lib.remove "talos-1.14" images) (image: mkTest (import ./tests/cloud-init.nix image))
+          lib.genAttrs cloudInitImages (image: mkTest (import ./tests/cloud-init.nix image))
           // {
             "talos-1.14" = mkTest ./tests/talos.nix;
+            provisioners = mkTest ./tests/provisioners.nix;
           }
         )
       ) inputs.nixpkgs.legacyPackages;

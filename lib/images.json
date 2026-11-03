@@ -1,6 +1,7 @@
 {
   "almalinux-9": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-b5SIFFjf6WZHRUSxLobQeNgaYARXGIBF0xewzjw73Kc=",
@@ -12,6 +13,7 @@
   },
   "amazon-2023": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-C3RXokqUZ60OkjgiwU8qtwa7xcvWhUTgCvDYJH8iW0o=",
@@ -23,6 +25,7 @@
   },
   "arch": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-eU60iJs54fDtfVrpmLKh7SE324z4w0ds8pYsdDfssAM=",
@@ -34,6 +37,7 @@
   },
   "debian-13": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha512-Os4Y4zvdA27bSdH3k0K9AdKrmA41GU7bC0EENc1UNTjShqC9E7uwg194YjBuPThc4vanDY7PC9lhERFmrbwbjg==",
@@ -45,6 +49,7 @@
   },
   "fedora-44": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-KGgP5bNxpaguv0OjGSbghqFo5ZlJ0DlpxQk+cHH5C38=",
@@ -56,6 +61,7 @@
   },
   "opensuse-tumbleweed": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-rSN128WHGkEQa7QhI5QP+xNS0MEbGtahRC9WVmAl77E=",
@@ -67,6 +73,7 @@
   },
   "oracle-9": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-sSEDORMnq+6AkGhnWcDWLayaevK/D0X99rDQhaD7tSs=",
@@ -78,6 +85,7 @@
   },
   "rocky-9": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-ksIGzG95DGFYMkfu/oeJD4goQgZiwXys8kfOx4q07sg=",
@@ -90,6 +98,7 @@
   "talos-1.14": {
     "compression": "xz",
     "format": "raw",
+    "provisioner": "none",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-oaAQNeY65Vx/e9RcmBHqGqY6jkNoilPY4zbfFGXyhqs=",
@@ -101,6 +110,7 @@
   },
   "ubuntu-24.04": {
     "format": "qcow2",
+    "provisioner": "cloud-init",
     "systems": {
       "x86_64-linux": {
         "hash": "sha256-BOjyRhoWpE54o3AoRHHylhbN2brxiT3yWAe3H5hbbJQ=",

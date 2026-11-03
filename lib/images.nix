@@ -10,7 +10,12 @@ lib.mapAttrs (
     pin = entry.systems.${system} or (throw "image ${name} is not available for ${system}");
   in
   {
-    inherit (entry) format version verification;
+    inherit (entry)
+      format
+      provisioner
+      version
+      verification
+      ;
     image = pkgs.fetchurl (
       {
         name = "${name}.${entry.format}";

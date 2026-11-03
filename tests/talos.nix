@@ -6,20 +6,18 @@ let
   clientIp = config.nodes.client.networking.primaryIPAddress;
 
   # no shell on talos: it gets a machine config via nocloud user-data and is driven through its API
-  talosConfig = pkgs.runCommand "talos-config" { nativeBuildInputs = [ pkgs.talosctl ]; } ''
-    export HOME=$TMPDIR
-    talosctl gen config interop https://${ip}:6443 \
-      --talos-version v${images."talos-1.14".version} --install-disk /dev/vda --with-docs=false --with-examples=false \
-      --config-patch '{"machine":{"time":{"servers":["${clientIp}"]}}}' \
-      -o $out
-  '';
+  talosConfig = import ./talos-config.nix {
+    inherit pkgs ip;
+    inherit (images."talos-1.14") version;
+    timeServer = clientIp;
+  };
 in
 {
   name = "talos-interop";
 
   foreignNodes.talos = {
     image = "talos-1.14";
-    userDataFile = "${talosConfig}/controlplane.yaml";
+    userData = "${talosConfig}/controlplane.yaml";
   };
 
   nodes.client = {

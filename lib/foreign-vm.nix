@@ -21,10 +21,12 @@ let
     PS1="" exec /bin/bash --norc /dev/hvc0
   '';
 
+  # runcmd runs inside cloud-final.service, so ordering after it makes the
+  # shell, and with it the first `succeed`, wait until provisioning is done
   backdoorUnit = ''
     [Unit]
     Requires=dev-hvc0.device dev-ttyS0.device
-    After=dev-hvc0.device dev-ttyS0.device
+    After=dev-hvc0.device dev-ttyS0.device cloud-final.service
     [Service]
     ExecStart=/bin/bash /usr/local/sbin/nixos-test-backdoor
     KillSignal=SIGHUP
@@ -32,48 +34,52 @@ let
     WantedBy=multi-user.target
   '';
 
-  # cloud-config that makes a cloud-init distro drivable by the test driver
-  backdoorCloudConfig =
+  # cloud-config merge: maps recursively, lists appended, other values from `b`
+  mergeCloudConfig =
+    a: b:
+    if lib.isAttrs a && lib.isAttrs b then
+      lib.zipAttrsWith
+        (
+          _: values:
+          if lib.length values == 1 then
+            lib.head values
+          else
+            mergeCloudConfig (lib.head values) (lib.last values)
+        )
+        [
+          a
+          b
+        ]
+    else if lib.isList a && lib.isList b then
+      a ++ b
+    else
+      b;
+
+  # what every cloud-init guest needs to be part of the test network
+  networkCloudConfig =
     {
-      hosts ? "",
+      hosts,
       ip,
       ip6,
     }:
-    "#cloud-config\n"
-    + toYAML {
+    {
       write_files = [
-        {
-          path = "/usr/local/sbin/nixos-test-backdoor";
-          permissions = "0755";
-          content = backdoorScript;
-        }
-        {
-          path = "/etc/systemd/system/nixos-test-backdoor.service";
-          content = backdoorUnit;
-        }
         {
           path = "/etc/hosts";
           append = true;
           content = hosts;
         }
       ];
-      # systemd-getty-generator would otherwise grab hvc0
+      # no time server on the test network: arch would wait for one forever
       bootcmd = [
-        [
-          "systemctl"
-          "mask"
-          "--now"
-          "serial-getty@hvc0.service"
-        ]
-        # no time server on the test network: arch would wait for one forever
         [
           "sh"
           "-c"
           "systemctl mask --now systemd-time-wait-sync.service || true"
         ]
       ];
+      # amazon's cloud-init loses the addresses if there is more than one
       runcmd = [
-        # amazon's cloud-init loses the addresses if there is more than one
         [
           "ip"
           "address"
@@ -90,18 +96,59 @@ let
           "dev"
           "eth0"
         ]
-        [
-          "systemctl"
-          "daemon-reload"
-        ]
-        [
-          "systemctl"
-          "start"
-          "--no-block"
-          "nixos-test-backdoor.service"
-        ]
       ];
     };
+
+  # the test driver's root shell on hvc0
+  shellCloudConfig = {
+    write_files = [
+      {
+        path = "/usr/local/sbin/nixos-test-backdoor";
+        permissions = "0755";
+        content = backdoorScript;
+      }
+      {
+        path = "/etc/systemd/system/nixos-test-backdoor.service";
+        content = backdoorUnit;
+      }
+    ];
+    # systemd-getty-generator would otherwise grab hvc0
+    bootcmd = [
+      [
+        "systemctl"
+        "mask"
+        "--now"
+        "serial-getty@hvc0.service"
+      ]
+    ];
+    runcmd = [
+      [
+        "systemctl"
+        "daemon-reload"
+      ]
+      [
+        "systemctl"
+        "start"
+        "--no-block"
+        "nixos-test-backdoor.service"
+      ]
+    ];
+  };
+
+  # cloud-config parts generated for a guest: network setup, then the shell
+  generatedCloudConfig =
+    {
+      hosts,
+      ip,
+      ip6,
+      shell,
+    }:
+    mergeCloudConfig (networkCloudConfig { inherit hosts ip ip6; }) (
+      lib.optionalAttrs shell shellCloudConfig
+    );
+
+  cloudConfigFile =
+    name: config: pkgs.writeText "${name}-user-data" ("#cloud-config\n" + toYAML config);
 
   mkSeed =
     {
@@ -118,7 +165,79 @@ let
     '';
 in
 {
-  inherit backdoorCloudConfig;
+  # user-data for provisioner = "cloud-init": one cloud-config
+  cloudInitUserData =
+    {
+      name,
+      hosts,
+      ip,
+      ip6,
+      shell,
+      extraConfig,
+    }:
+    cloudConfigFile name (
+      mergeCloudConfig (generatedCloudConfig {
+        inherit
+          hosts
+          ip
+          ip6
+          shell
+          ;
+      }) extraConfig
+    );
+
+  # user-data for provisioner = "custom": the user's file unchanged, followed
+  # by the generated cloud-config, which cloud-init merges into it
+  customUserData =
+    {
+      name,
+      hosts,
+      ip,
+      ip6,
+      shell,
+      userData,
+    }:
+    let
+      generated = cloudConfigFile "${name}-generated" (
+        generatedCloudConfig {
+          inherit
+            hosts
+            ip
+            ip6
+            shell
+            ;
+        }
+        // {
+          merge_how = [
+            {
+              name = "list";
+              settings = [ "append" ];
+            }
+            {
+              name = "dict";
+              settings = [
+                "no_replace"
+                "recurse_list"
+              ];
+            }
+          ];
+        }
+      );
+      boundary = "==nix-and-match-part==";
+    in
+    pkgs.runCommand "${name}-user-data" { } ''
+      part() {
+        printf -- '--%s\nContent-Type: text/plain; charset="utf-8"\nMIME-Version: 1.0\n\n' '${boundary}'
+        cat "$1"
+        printf '\n'
+      }
+      {
+        printf 'Content-Type: multipart/mixed; boundary="%s"\nMIME-Version: 1.0\n\n' '${boundary}'
+        part ${userData}
+        part ${generated}
+        printf -- '--%s--\n' '${boundary}'
+      } > $out
+    '';
 
   # start script for the test driver
   mkForeignVM =
@@ -132,8 +251,7 @@ in
       memory ? 2048,
       cores ? 2,
       diskSize ? "10G",
-      userData ? "",
-      userDataFile ? pkgs.writeText "user-data" userData,
+      userDataFile,
     }:
     let
       hostByte = lib.last (lib.splitString "." ip);

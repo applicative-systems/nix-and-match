@@ -24,7 +24,6 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     start_all()
     server.wait_for_unit("nginx.service")
-    ubuntu.succeed("cloud-init status --wait")
     ubuntu.succeed("curl -sf http://server/")
   '';
 }
@@ -33,7 +32,8 @@ pkgs.testers.runNixOSTest {
 Run the bundled tests with:
 
 ```sh
-nix build .#checks.x86_64-linux.debian-13 -L   # one check per image
+nix build .#checks.x86_64-linux.debian-13 -L      # one check per image
+nix build .#checks.x86_64-linux.provisioners -L   # all provisioners at once
 ```
 
 ## How
@@ -45,8 +45,59 @@ nix build .#checks.x86_64-linux.debian-13 -L   # one check per image
   `nodes.<name>.networking.primaryIPAddress`.
 - For cloud-init distros, the seed installs the test driver's `hvc0` root
   shell, so `machine.succeed(...)` works as it does on NixOS.
-- Talos has no shell. It gets a machine config through `userDataFile` and is
+- Talos has no shell. It gets a machine config through `userData` and is
   driven through `talosctl` from a NixOS node.
+
+## Provisioners
+
+`foreignNodes.<name>.provisioner` decides how a machine is set up at first
+boot. The image's catalog entry picks the default, so it rarely needs setting.
+
+| Provisioner  | Use it when                                              | Shell |
+| ------------ | -------------------------------------------------------- | ----- |
+| `cloud-init` | you need some setup in the guest (the default)           | yes   |
+| `custom`     | you want to test an existing user-data file, or a script | yes   |
+| `none`       | the image has no cloud-init, like Talos                  | no    |
+
+```nix
+foreignNodes = {
+  # generated cloud-config, plus your settings. Lists are appended.
+  web = {
+    image = "debian-13";
+    cloudInit.config = {
+      write_files = [ { path = "/etc/myapp.conf"; content = "server = http://server/"; } ];
+      runcmd = [ "systemctl restart myapp" ];
+    };
+  };
+
+  # your user-data file unchanged; the network setup and shell are added as a
+  # second part, which cloud-init merges into it
+  prod = {
+    image = "ubuntu-24.04";
+    provisioner = "custom";
+    userData = ./user-data.yaml;
+  };
+
+  # no cloud-init: userData is the whole seed, here a Talos machine config
+  talos = {
+    image = "talos-1.14";
+    userData = "${talosConfig}/controlplane.yaml";
+  };
+};
+```
+
+The shell starts only once cloud-init is done, so the first `succeed` waits
+for provisioning and the test script needs no `cloud-init status --wait`.
+`cloud-init status --long` in the guest shows whether everything worked.
+
+Set `shell = false` to see a cloud-init machine only from the network, as
+other hosts would. The test script must then not run commands on it: they wait
+for the shell forever. The same applies to `none`.
+
+There is no internet in the test, so `packages` only works with packages that
+are already in the image.
+
+`tests/provisioners.nix` uses every combination.
 
 ## Images
 
@@ -66,4 +117,5 @@ for Talos. Each pin records its `verification`:
 
 To add a distro, add an `update_<name>` function to
 `scripts/update-images.sh` and list it in `all`. Its check is then generated
-from `tests/cloud-init.nix`.
+from `tests/cloud-init.nix`. For an image without cloud-init, call
+`PROVISIONER=none pin ...` and write its own test, like `tests/talos.nix`.

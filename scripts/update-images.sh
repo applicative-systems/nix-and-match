@@ -65,9 +65,10 @@ newest() {
 }
 
 # pin <name> <version> <url> <sha256|sha512> <hex hash> <verification> [<compression>]
+# Images without cloud-init are called as `PROVISIONER=none pin ...`.
 pin() {
   local name=$1 version=$2 url=$3 algo=$4 hex=$5 verification=$6 compression=${7:-}
-  local sri format=qcow2
+  local sri format=qcow2 provisioner=${PROVISIONER:-cloud-init}
   [[ -z $compression ]] || format=raw
 
   curl -fsIL --retry 3 --max-time 30 -o /dev/null "$url"
@@ -76,9 +77,9 @@ pin() {
   jq -S \
     --arg name "$name" --arg system "$system" --arg version "$version" --arg url "$url" \
     --arg hash "$sri" --arg format "$format" --arg verification "$verification" \
-    --arg compression "$compression" '
+    --arg compression "$compression" --arg provisioner "$provisioner" '
     .[$name] = {
-      $version, $format, $verification,
+      $version, $format, $verification, $provisioner,
       systems: (.[$name].systems // {} | .[$system] = { $url, $hash })
     } + (if $compression == "" then {} else { $compression } end)
   ' "$catalog" >"$work/catalog.json"
@@ -190,7 +191,7 @@ update_talos-1.14() {
   url=https://factory.talos.dev/image/$schematic/v$version/nocloud-amd64.raw.xz
   # hash of the decompressed image, not of the .xz
   hash=$(curl -fsSL --retry 3 "$url" | xz -dc | sha256sum | cut -d ' ' -f 1)
-  pin talos-1.14 "$version" "$url" sha256 "$hash" none xz
+  PROVISIONER=none pin talos-1.14 "$version" "$url" sha256 "$hash" none xz
 }
 
 update_ubuntu-24.04() {
