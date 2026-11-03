@@ -1,7 +1,7 @@
 # Nix on other distros
 
-Installs Nix on other distros the way their users do, then checks that it
-works:
+Installs Nix on other distros the way their users do, with two installers,
+then checks that it works:
 
 1. **install:** the documented one-liner, unchanged:
    `curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install`.
@@ -22,26 +22,36 @@ nix build .#checks.x86_64-linux.nix-installer-fedora-44 -L
 
 The NixOS node `cache` stands in for the internet:
 
-- nginx answers as `artifacts.nixos.org` and `releases.nixos.org`, with a
-  certificate from a test CA that the guest trusts, and serves the installer.
-  The installer binary contains Nix, so nothing else is downloaded.
+- nginx answers as `artifacts.nixos.org` and as the host the installer comes
+  from, `releases.nixos.org` or `github.com`, with a certificate from a test
+  CA that the guest trusts. The installer binary contains Nix, so nothing else
+  is downloaded.
 - harmonia serves the node's Nix store as a signed binary cache. The installer
   is told about it with `--extra-conf`.
 
 `keys/` holds the test CA, the server certificate and the cache's signing key.
 They are only for this test network; `keys/generate.sh` makes new ones.
 
-## Which Nix
+## Which installers
 
-The installer and its script come from the `nix` flake input, `NixOS/nix`
-master: `hydraJobs.nixInstaller.<system>` and `hydraJobs.nixInstallerScript`,
-as Hydra builds them for `releases.nixos.org`, so they are on
-cache.nixos.org. The input has no `follows`, which would mean building Nix.
-Update it with `nix flake update nix`.
+Both come from flake inputs, and both contain the Nix they install. Their
+scripts are served unchanged, at the location they download the installer
+binary from.
 
-This tests the installer before it is released. Nix 2.35 and older were
-installed with the separate `NixOS/nix-installer`; to test a release, point
-the input at a release branch that has these jobs.
+| Check                       | Installer                                   | Input                                         |
+| --------------------------- | ------------------------------------------- | --------------------------------------------- |
+| `nix-installer-<distro>`    | Nix's own, as on `releases.nixos.org`       | `nix`: `NixOS/nix` master                     |
+| `nix-ng-installer-<distro>` | the NG installer, as on its GitHub releases | `nix-installer`: `NixOS/nix-installer` 2.35.4 |
+
+- **Nix's own installer** tests what comes next: on master, the installer is
+  part of Nix. `hydraJobs.nixInstaller.<system>` and
+  `hydraJobs.nixInstallerScript` are on cache.nixos.org, since the input has
+  no `follows`. Update it with `nix flake update nix`.
+- **The NG installer** tests what `curl ... | sh` installs today, with the
+  release's own files: the binary is `hydraJobs.build.<system>`, the Hydra
+  build that the release copies, from cache.nixos.org, and the script gets its
+  version filled in as the release script does. Both match the release's
+  `SHA256SUMS`. To test a newer release, change the tag in `flake.nix`.
 
 ## Distros
 

@@ -2,6 +2,7 @@
   distro,
   method,
   nix,
+  nix-installer,
 }:
 {
   config,
@@ -14,21 +15,55 @@ let
   inherit (pkgs.stdenv.hostPlatform) system;
   cacheIp = config.nodes.cache.networking.primaryIPAddress;
 
-  # the installer and its script, as Hydra builds them for releases.nixos.org.
-  # The installer contains the Nix it installs.
-  installer = nix.hydraJobs.nixInstaller.${system};
-  version = lib.removePrefix "nix-installer-" installer.name;
-  release = "/nix/nix-${version}";
+  # Where the installer's script downloads the installer binary from, and the
+  # Nix that the binary contains and installs. The script is served unchanged.
+  installer =
+    {
+      # Nix's own installer, from the `nix` input, as on releases.nixos.org
+      installer =
+        let
+          package = nix.hydraJobs.nixInstaller.${system};
+          version = lib.removePrefix "nix-installer-" package.name;
+        in
+        {
+          nixVersion = version;
+          host = "releases.nixos.org";
+          path = "/nix/nix-${version}";
+          script = "${nix.hydraJobs.nixInstallerScript}/nix-installer";
+          binary = lib.getExe package;
+        };
+      # The NG installer, NixOS/nix-installer, as on its GitHub releases: the
+      # binary is the Hydra build that the release copies, so it comes from
+      # cache.nixos.org. The script gets its version as the release script
+      # does; both are the release's files byte for byte.
+      ng-installer =
+        let
+          package = nix-installer.hydraJobs.build.${system};
+          version = lib.removePrefix "nix-installer-" package.name;
+        in
+        {
+          # it contains the Nix of its own `nix` input
+          nixVersion = nix-installer.inputs.nix.packages.${system}.nix.version;
+          host = "github.com";
+          path = "/NixOS/nix-installer/releases/download/${version}";
+          script = pkgs.runCommand "nix-installer-${version}.sh" { } ''
+            substitute ${nix-installer}/nix-installer.sh $out \
+              --replace-fail '$assemble_installer_templated_version' ${version}
+          '';
+          binary = "${package}/bin/nix-installer";
+        };
+    }
+    .${method};
 
-  # what the cache serves as releases.nixos.org
-  releaseFiles = pkgs.linkFarm "nix-${version}-release" [
+  # what the cache serves at the installer's download location
+  releaseFiles = pkgs.linkFarm "${method}-release" [
     {
       name = "nix-installer.sh";
-      path = "${nix.hydraJobs.nixInstallerScript}/nix-installer";
+      path = installer.script;
     }
     {
       name = "nix-installer-${system}";
-      path = lib.getExe installer;
+      path = installer.binary;
     }
   ];
 
@@ -47,16 +82,12 @@ let
 
   publicKey = lib.fileContents ./keys/cache.public;
   ca = builtins.readFile ./keys/ca.pem;
-  installCommand =
-    {
-      # the documented one-liner, unchanged
-      installer = lib.concatStringsSep " " [
-        "curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install --no-confirm"
-        "--extra-conf 'substituters = http://cache:5000'"
-        "--extra-conf 'trusted-public-keys = ${publicKey}'"
-      ];
-    }
-    .${method};
+  # the documented one-liner, unchanged, for both installers
+  installCommand = lib.concatStringsSep " " [
+    "curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install --no-confirm"
+    "--extra-conf 'substituters = http://cache:5000'"
+    "--extra-conf 'trusted-public-keys = ${publicKey}'"
+  ];
 in
 {
   name = "nix-${method}-${distro}";
@@ -67,7 +98,7 @@ in
       5000
     ];
 
-    # stands in for artifacts.nixos.org and releases.nixos.org
+    # stands in for artifacts.nixos.org and where the installer comes from
     services.nginx = {
       enable = true;
       virtualHosts =
@@ -80,10 +111,11 @@ in
         in
         {
           "artifacts.nixos.org" = tls // {
-            locations."= /nix-installer".return = "302 https://releases.nixos.org${release}/nix-installer.sh";
+            locations."= /nix-installer".return =
+              "302 https://${installer.host}${installer.path}/nix-installer.sh";
           };
-          "releases.nixos.org" = tls // {
-            locations."${release}/".alias = "${releaseFiles}/";
+          ${installer.host} = tls // {
+            locations."${installer.path}/".alias = "${releaseFiles}/";
           };
         };
     };
@@ -104,7 +136,7 @@ in
         {
           path = "/etc/hosts";
           append = true;
-          content = "${cacheIp} artifacts.nixos.org releases.nixos.org\n";
+          content = "${cacheIp} artifacts.nixos.org ${installer.host}\n";
         }
         {
           path = "/etc/nix-demo/build.nix";
@@ -142,9 +174,9 @@ in
         # the installer only warns when nix isn't usable from a new shell
         assert "SelfTest" not in output, "the installer's self-test failed"
         guest.succeed("systemctl is-active nix-daemon.socket || systemctl is-active nix-daemon.service")
-        # the Nix from the flake input
+        # the Nix in the installer from the flake input
         installed = user("nix --version").strip()
-        assert installed == "nix (Nix) ${version}", f"installed {installed}"
+        assert installed == "nix (Nix) ${installer.nixVersion}", f"installed {installed}"
 
     with subtest("an ordinary user builds in the sandbox"):
         out = user("nix-build --no-out-link /etc/nix-demo/build.nix").strip()
@@ -153,8 +185,7 @@ in
     with subtest("an ordinary user runs a program from the binary cache"):
         user("nix-store --realise ${demo}")
         guest.log(user("${lib.getExe demo} --version"))
-  ''
-  + lib.optionalString (method == "installer") ''
+
     with subtest("uninstall"):
         guest.log(guest.succeed("/nix/nix-installer uninstall --no-confirm 2>&1"))
         guest.succeed("test ! -e /nix")

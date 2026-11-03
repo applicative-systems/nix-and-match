@@ -1,8 +1,10 @@
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  # for examples/nix-on-distros: its installer, as built by Hydra. No `follows`,
-  # so the builds come from cache.nixos.org.
+
+  # examples/nix-on-distros
+  # no follows for caching.
   inputs.nix.url = "github:NixOS/nix";
+  inputs.nix-installer.url = "github:NixOS/nix-installer/2.35.4";
 
   outputs =
     inputs:
@@ -105,7 +107,7 @@
           # examples: tests of something other than this repository
           // import ./examples/nix-on-distros {
             inherit pkgs;
-            inherit (inputs) nix;
+            inherit (inputs) nix nix-installer;
             testModule = inputs.self.testModules.default;
           }
         )

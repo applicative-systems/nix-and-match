@@ -3,8 +3,10 @@
 # distro and install method: nix-<method>-<distro>.
 {
   pkgs,
-  # the NixOS/nix flake, whose Hydra jobs build the installer
+  # the NixOS/nix flake, whose Hydra jobs build its installer
   nix,
+  # the NixOS/nix-installer flake, the NG installer
+  nix-installer,
   testModule,
 }:
 let
@@ -21,7 +23,10 @@ let
     "opensuse-tumbleweed"
     "amazon-2023"
   ];
-  methods = [ "installer" ];
+  methods = [
+    "installer"
+    "ng-installer"
+  ];
 in
 lib.listToAttrs (
   map
@@ -31,7 +36,14 @@ lib.listToAttrs (
         pkgs.testers.runNixOSTest {
           imports = [
             testModule
-            (import ./test.nix { inherit distro method nix; })
+            (import ./test.nix {
+              inherit
+                distro
+                method
+                nix
+                nix-installer
+                ;
+            })
           ];
         }
       )
