@@ -53,6 +53,7 @@ let
         ;
       ip = networking.primaryIPAddress;
       ip6 = networking.primaryIPv6Address;
+      inherit (top.nodes.${name}.virtualisation.test) nodeNumber;
       userDataFile = userDataFile name node;
     };
 

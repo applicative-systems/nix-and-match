@@ -2,23 +2,19 @@
 let
   inherit (pkgs) lib;
   toYAML = lib.generators.toYAML { };
-  inherit (pkgs.stdenv.hostPlatform) system;
   qemu = pkgs.qemu_test;
 
-  # guests always have the host's system and run with KVM
-  machine =
-    {
-      x86_64-linux = {
-        args = "-machine accel=kvm:tcg -cpu max";
-        serial = "ttyS0";
-      };
-      aarch64-linux = {
-        # cloud images boot with UEFI
-        args = "-machine virt,gic-version=max,accel=kvm:tcg -cpu max -bios ${qemu}/share/qemu/edk2-aarch64-code.fd";
-        serial = "ttyAMA0";
-      };
-    }
-    .${system} or (throw "foreign nodes are not supported on ${system}");
+  # the same helpers that NixOS test VMs use, so foreign VMs get the same
+  # machine type, serial console and NICs. Guests have the host's system.
+  qemuCommon = import "${pkgs.path}/nixos/lib/qemu-common.nix" {
+    inherit lib;
+    inherit (pkgs) stdenv;
+  };
+  qemuBinary =
+    qemuCommon.qemuBinary qemu
+    # cloud images boot with UEFI, NixOS test VMs boot their kernel directly
+    + lib.optionalString pkgs.stdenv.hostPlatform.isAarch64 " -bios ${qemu}/share/qemu/edk2-aarch64-code.fd";
+  serial = qemuCommon.qemuSerialDevice;
 
   # same wire protocol as nixos/modules/testing/test-instrumentation.nix
   backdoorScript = serial: ''
@@ -120,11 +116,11 @@ let
       {
         path = "/usr/local/sbin/nixos-test-backdoor";
         permissions = "0755";
-        content = backdoorScript machine.serial;
+        content = backdoorScript serial;
       }
       {
         path = "/etc/systemd/system/nixos-test-backdoor.service";
-        content = backdoorUnit machine.serial;
+        content = backdoorUnit serial;
       }
     ];
     # systemd-getty-generator would otherwise grab hvc0
@@ -262,6 +258,8 @@ in
       format,
       ip,
       ip6,
+      # virtualisation.test.nodeNumber of the node
+      nodeNumber,
       vlan ? 1,
       memorySize ? 2048,
       cores ? 2,
@@ -269,10 +267,7 @@ in
       userDataFile,
     }:
     let
-      hostByte = lib.last (lib.splitString "." ip);
-      mac = "52:54:00:12:${lib.fixedWidthString 2 "0" (lib.toHexString vlan)}:${
-        lib.fixedWidthString 2 "0" (lib.toHexString (lib.toInt hostByte))
-      }";
+      mac = qemuCommon.qemuNicMac vlan nodeNumber;
       seed = mkSeed {
         inherit name userDataFile;
         networkConfig = {
@@ -298,13 +293,12 @@ in
         ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null ||
           echo "${name}: disk stays at the image's size, which is larger than ${diskSize}" >&2
       fi
-      exec ${qemu}/bin/qemu-system-${pkgs.stdenv.hostPlatform.qemuArch} ${machine.args} \
+      exec ${qemuBinary} \
         -name ${name} -m ${toString memorySize} -smp ${toString cores} \
         -device virtio-rng-pci \
         -drive file="$disk",if=virtio \
         -drive file=${seed},if=virtio,media=cdrom,readonly=on \
-        -netdev vde,id=vlan${toString vlan},sock="$QEMU_VDE_SOCKET_${toString vlan}" \
-        -device virtio-net-pci,netdev=vlan${toString vlan},mac=${mac} \
+        ${lib.concatStringsSep " " (qemuCommon.qemuNICFlags 1 vlan nodeNumber)} \
         "$@"
     '';
 }
