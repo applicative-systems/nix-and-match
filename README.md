@@ -101,6 +101,18 @@ are already in the image.
 
 `tests/provisioners.nix` uses every combination.
 
+## Shared folders
+
+cloud-init machines get the same shared folders as NixOS test VMs, over
+virtiofs: `/tmp/xchg` and `/tmp/shared`, which all machines of the test share.
+So `copy_from_host` and `copy_from_machine` work as on NixOS. The folders are
+mounted before the shell starts. With `provisioner = "cloud-init"`, they are
+also mounted before the `runcmd` commands from `cloudInit.config` run.
+
+Oracle Linux's kernel has no virtiofs, so it gets no shared folders: use
+`copy_from_host_via_shell` there. Machines with `provisioner = "none"` don't
+get them either.
+
 ## Architectures
 
 Images are pinned for `x86_64-linux` and `aarch64-linux`, except Arch Linux,
@@ -129,7 +141,9 @@ To add a distro, add an `update_<name>` function to
 in `$system`, and `systems_of` lists the systems if it isn't published for all
 of them. Its check is then generated
 from `tests/cloud-init.nix`. For an image without cloud-init, call
-`PROVISIONER=none pin ...` and write its own test, like `tests/talos.nix`.
+`PROVISIONER=none pin ...` and write its own test, like `tests/talos.nix`. If
+the image's kernel has no virtiofs, add `"virtiofs": false` to its entry by
+hand; the updater keeps it.
 
 ## License
 

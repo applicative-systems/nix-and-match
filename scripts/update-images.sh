@@ -85,7 +85,8 @@ newest() {
 
 # pin <name> <version> <url> <sha256|sha512> <hex hash> <verification> [<compression>]
 # pins the image for $system. Images without cloud-init are called as
-# `PROVISIONER=none pin ...`.
+# `PROVISIONER=none pin ...`. Other fields of the entry, such as
+# `"virtiofs": false`, are maintained by hand and kept.
 pin() {
   local name=$1 version=$2 url=$3 algo=$4 hex=$5 verification=$6 compression=${7:-}
   local sri format=qcow2 provisioner=${PROVISIONER:-cloud-init}
@@ -98,7 +99,7 @@ pin() {
     --arg name "$name" --arg system "$system" --arg version "$version" --arg url "$url" \
     --arg hash "$sri" --arg format "$format" --arg verification "$verification" \
     --arg compression "$compression" --arg provisioner "$provisioner" '
-    .[$name] = {
+    .[$name] = (.[$name] // {}) + {
       $format, $verification, $provisioner,
       systems: (.[$name].systems // {} | .[$system] = { $version, $url, $hash })
     } + (if $compression == "" then {} else { $compression } end)

@@ -146,17 +146,33 @@ let
     ];
   };
 
-  # cloud-config parts generated for a guest: network setup, then the shell
+  # virtiofs shares, mounted from runcmd: earlier stages can run before /tmp is
+  # mounted, which would hide the shares under it
+  sharesCloudConfig =
+    shares:
+    lib.optionalAttrs (shares != { }) {
+      runcmd = lib.mapAttrsToList (tag: share: [
+        "sh"
+        "-c"
+        "mkdir -p ${share.target} && mount -t virtiofs -o ${
+          if share.writable then "rw" else "ro"
+        } ${tag} ${share.target}"
+      ]) shares;
+    };
+
+  # cloud-config parts generated for a guest: network setup, shares, then the shell
   generatedCloudConfig =
     {
       hosts,
       ip,
       ip6,
+      shares,
       shell,
     }:
-    mergeCloudConfig (networkCloudConfig { inherit hosts ip ip6; }) (
-      lib.optionalAttrs shell shellCloudConfig
-    );
+    lib.foldl' mergeCloudConfig (networkCloudConfig { inherit hosts ip ip6; }) [
+      (sharesCloudConfig shares)
+      (lib.optionalAttrs shell shellCloudConfig)
+    ];
 
   cloudConfigFile =
     name: config: pkgs.writeText "${name}-user-data" ("#cloud-config\n" + toYAML config);
@@ -183,6 +199,7 @@ in
       hosts,
       ip,
       ip6,
+      shares,
       shell,
       extraConfig,
     }:
@@ -192,6 +209,7 @@ in
           hosts
           ip
           ip6
+          shares
           shell
           ;
       }) extraConfig
@@ -205,6 +223,7 @@ in
       hosts,
       ip,
       ip6,
+      shares,
       shell,
       userData,
     }:
@@ -215,6 +234,7 @@ in
             hosts
             ip
             ip6
+            shares
             shell
             ;
         }
@@ -264,10 +284,44 @@ in
       memorySize ? 2048,
       cores ? 2,
       diskSize ? "10G",
+      # tag -> { source, target, writable }, as virtualisation.sharedDirectories;
+      # `source` is a shell expression
+      shares ? { },
       userDataFile,
     }:
     let
       mac = qemuCommon.qemuNicMac vlan nodeNumber;
+      # one virtiofsd per share, as NixOS test VMs do (see qemu-vm.nix)
+      startVirtiofsd = tag: share: ''
+        ${lib.getExe pkgs.virtiofsd} \
+          --socket-path="$virtiofs/${tag}" \
+          --shared-dir=${share.source} \
+          ${if share.writable then "--writeback" else "--readonly"} \
+          --sandbox=none \
+          --seccomp=none \
+          --cache=always \
+          --no-announce-submounts \
+          --translate-uid=host:65534:0:1 \
+          --translate-gid=host:65534:0:1 \
+          &
+      '';
+      # QEMU fails if a socket isn't there yet
+      waitVirtiofsd = tag: _: ''
+        for _ in {1..100}; do [ -S "$virtiofs/${tag}" ] && break; sleep 0.1; done
+      '';
+      sharesFlags = lib.optionals (shares != { }) (
+        [
+          # vhost-user needs memory that virtiofsd can map
+          "-object memory-backend-memfd,id=mem0,size=${toString memorySize}M,share=on"
+          "-machine memory-backend=mem0"
+        ]
+        ++ lib.concatLists (
+          lib.mapAttrsToList (tag: _: [
+            "-chardev socket,id=${tag},path=\"$virtiofs/${tag}\""
+            "-device vhost-user-fs-pci,chardev=${tag},tag=${tag}"
+          ]) shares
+        )
+      );
       seed = mkSeed {
         inherit name userDataFile;
         networkConfig = {
@@ -293,12 +347,19 @@ in
         ${qemu}/bin/qemu-img resize -q "$disk" ${diskSize} 2>/dev/null ||
           echo "${name}: disk stays at the image's size, which is larger than ${diskSize}" >&2
       fi
+      mkdir -p "$TMPDIR/xchg"
+      ${lib.optionalString (shares != { }) ''
+        virtiofs=$(mktemp -d)
+        ${lib.concatLines (lib.mapAttrsToList startVirtiofsd shares)}
+        ${lib.concatLines (lib.mapAttrsToList waitVirtiofsd shares)}
+      ''}
       exec ${qemuBinary} \
         -name ${name} -m ${toString memorySize} -smp ${toString cores} \
         -device virtio-rng-pci \
         -drive file="$disk",if=virtio \
         -drive file=${seed},if=virtio,media=cdrom,readonly=on \
         ${lib.concatStringsSep " " (qemuCommon.qemuNICFlags 1 vlan nodeNumber)} \
+        ${lib.concatStringsSep " " sharesFlags} \
         "$@"
     '';
 }

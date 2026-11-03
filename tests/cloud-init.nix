@@ -1,6 +1,9 @@
 # shared by all images with a cloud-init provisioner
 image:
 { hostPkgs, ... }:
+let
+  inherit ((import ../lib/images.nix { pkgs = hostPkgs; }).${image}) virtiofs;
+in
 {
   name = "${image}-interop";
 
@@ -38,6 +41,40 @@ image:
         # device id 4 is the entropy source; whether a driver uses it is up to the distro
         guest.succeed("grep -x 0x0004 /sys/bus/virtio/devices/*/device")
 
+  ''
+  + (
+    if virtiofs then
+      ''
+        with subtest("copy_from_host"):
+            src = guest.out_dir / "to-guest"
+            src.mkdir()
+            (src / "file").write_text("from the host\n")
+            guest.copy_from_host(str(src), "/root/to-guest")
+            guest.succeed("grep -x 'from the host' /root/to-guest/file")
+
+        with subtest("copy_from_machine"):
+            guest.succeed("echo 'from the guest' > /root/from-guest")
+            guest.copy_from_machine("/root/from-guest", "copied")
+            assert (guest.out_dir / "copied" / "from-guest").read_text() == "from the guest\n"
+
+        with subtest("shared with nixos nodes"):
+            guest.succeed("echo foreign > /tmp/shared/guest-file")
+            server.succeed("grep -x foreign /tmp/shared/guest-file")
+            server.succeed("echo nixos > /tmp/shared/server-file")
+            guest.succeed("grep -x nixos /tmp/shared/server-file")
+            guest.succeed("findmnt -t virtiofs /tmp/xchg")
+      ''
+    else
+      ''
+        with subtest("no virtiofs, copy_from_host_via_shell"):
+            guest.fail("findmnt /tmp/shared")
+            src = guest.out_dir / "to-guest"
+            src.write_text("from the host\n")
+            guest.copy_from_host_via_shell(str(src), "/root/to-guest")
+            guest.succeed("grep -x 'from the host' /root/to-guest")
+      ''
+  )
+  + ''
     with subtest("shell survives isolate"):
         guest.succeed("systemctl isolate rescue.target")
         guest.succeed("systemctl is-active rescue.target")

@@ -11,6 +11,23 @@ let
   catalog = import ./images.nix { pkgs = hostPkgs; };
   inherit (hostPkgs.stdenv.hostPlatform) system;
 
+  # the same folders as on NixOS test VMs, so the driver's `copy_from_host` and
+  # `copy_from_machine` work. Images without virtiofs and Talos get none.
+  shares =
+    node:
+    lib.optionalAttrs (catalog.${node.image}.virtiofs && node.provisioner != "none") {
+      xchg = {
+        source = ''"$TMPDIR"/xchg'';
+        target = "/tmp/xchg";
+        writable = true;
+      };
+      shared = {
+        source = ''"''${SHARED_DIR:-$TMPDIR/xchg}"'';
+        target = "/tmp/shared";
+        writable = true;
+      };
+    };
+
   userDataFile =
     name: node:
     let
@@ -18,6 +35,7 @@ let
       args = {
         inherit name;
         inherit (node) shell;
+        shares = shares node;
         hosts = networking.extraHosts;
         ip = networking.primaryIPAddress;
         ip6 = networking.primaryIPv6Address;
@@ -54,6 +72,7 @@ let
       ip = networking.primaryIPAddress;
       ip6 = networking.primaryIPv6Address;
       inherit (top.nodes.${name}.virtualisation.test) nodeNumber;
+      shares = shares node;
       userDataFile = userDataFile name node;
     };
 

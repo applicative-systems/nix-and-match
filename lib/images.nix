@@ -6,6 +6,9 @@ in
 lib.mapAttrs (name: entry: {
   inherit (entry) format provisioner verification;
 
+  # whether the image's kernel can mount virtiofs shares
+  virtiofs = entry.virtiofs or true;
+
   # systems the image is published for
   systems = lib.attrNames entry.systems;
 
