@@ -38,6 +38,12 @@ nix build .#checks.x86_64-linux.provisioners -L   # all provisioners at once
 
 The same checks exist for `aarch64-linux` hosts, without Arch Linux.
 
+`tests/` protects this repository and its images from regressions.
+`examples/` tests something useful with it, and shows how:
+
+- [`examples/nix-on-distros`](examples/nix-on-distros): installs Nix on seven
+  distros with the official installer, then builds and runs software with it.
+
 ## How
 
 - Each entry in `foreignNodes` boots a pinned cloud image on a copy-on-write

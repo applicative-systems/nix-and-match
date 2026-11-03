@@ -68,6 +68,28 @@
             }
           );
         };
+        # pins of the examples, by each example's update.sh
+        update-examples = {
+          type = "app";
+          program = lib.getExe (
+            pkgs.writeShellApplication {
+              name = "update-examples";
+              runtimeInputs = with pkgs; [
+                coreutils
+                curl
+                gawk
+                jq
+                nix
+              ];
+              text = ''
+                for script in examples/*/update.sh; do
+                  # shellcheck disable=SC1090
+                  (source "$script")
+                done
+              '';
+            }
+          );
+        };
       }) inputs.nixpkgs.legacyPackages;
 
       checks = builtins.mapAttrs (
@@ -98,6 +120,11 @@
             qemu-opts = (mkTest ./tests/qemu-opts.nix).overrideTestDerivation {
               QEMU_OPTS = "-smbios type=1,serial=nix-and-match";
             };
+          }
+          # examples: tests of something other than this repository
+          // import ./examples/nix-on-distros {
+            inherit pkgs;
+            testModule = inputs.self.testModules.default;
           }
         )
       ) inputs.nixpkgs.legacyPackages;
