@@ -53,6 +53,7 @@
       apps = builtins.mapAttrs (_: pkgs: {
         update-images = {
           type = "app";
+          meta.description = "Refresh the image pins in lib/images.json";
           program = lib.getExe (
             pkgs.writeShellApplication {
               name = "update-images";
