@@ -4,7 +4,6 @@
   # examples/nix-on-distros
   # no follows for caching.
   inputs.nix.url = "github:NixOS/nix";
-  inputs.nix-installer.url = "github:NixOS/nix-installer/2.35.4";
 
   outputs =
     inputs:
@@ -107,7 +106,7 @@
           # examples: tests of something other than this repository
           // import ./examples/nix-on-distros {
             inherit pkgs;
-            inherit (inputs) nix nix-installer;
+            inherit (inputs) nix;
             testModule = inputs.self.testModules.default;
           }
         )

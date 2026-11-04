@@ -1,11 +1,9 @@
 {
   distro,
-  method,
   # "use": install, then use Nix as people do. "repair": the installer's
   # repair cases, installing over broken installations.
   scenario,
   nix,
-  nix-installer,
 }:
 {
   config,
@@ -18,58 +16,24 @@ let
   inherit (pkgs.stdenv.hostPlatform) system;
   cacheIp = config.nodes.cache.networking.primaryIPAddress;
 
-  # Where the installer's script downloads the installer binary from, and the
-  # Nix that the binary contains and installs. The script is served unchanged.
+  # The installer, as Nix master builds it: NixOS/nix-installer (the NG
+  # installer) with this Nix inside, and Nix's script, which downloads the
+  # binary from releases.nixos.org. Both from cache.nixos.org.
   installer =
+    let
+      package = nix.hydraJobs.nixInstaller.${system};
+      version = lib.removePrefix "nix-installer-" package.name;
+    in
     {
-      # Nix's own installer, from the `nix` input, as on releases.nixos.org
-      installer =
-        let
-          package = nix.hydraJobs.nixInstaller.${system};
-          version = lib.removePrefix "nix-installer-" package.name;
-        in
-        {
-          nixVersion = version;
-          knownIssues = [ ];
-          host = "releases.nixos.org";
-          path = "/nix/nix-${version}";
-          script = "${nix.hydraJobs.nixInstallerScript}/nix-installer";
-          binary = lib.getExe package;
-        };
-      # The NG installer, NixOS/nix-installer, as on its GitHub releases: the
-      # binary is the Hydra build that the release copies, so it comes from
-      # cache.nixos.org. The script gets its version as the release script
-      # does; both are the release's files byte for byte.
-      ng-installer =
-        let
-          package = nix-installer.hydraJobs.build.${system};
-          version = lib.removePrefix "nix-installer-" package.name;
-        in
-        {
-          # it contains the Nix of its own `nix` input
-          nixVersion = nix-installer.inputs.nix.packages.${system}.nix.version;
-          # issues of 2.35.4 that this test finds, both fixed on main since:
-          knownIssues = [
-            # the store's directories keep the time of the install, not
-            # mtime 1: tar-rs doesn't restore them (fetch_and_unpack_nix.rs)
-            "store-dir-mtimes"
-            # installing over an existing store changes the group of its
-            # top-level entries to nixbld, not 0 (provision_nix.rs)
-            "reinstall-chgrps-store"
-          ];
-          host = "github.com";
-          path = "/NixOS/nix-installer/releases/download/${version}";
-          script = pkgs.runCommand "nix-installer-${version}.sh" { } ''
-            substitute ${nix-installer}/nix-installer.sh $out \
-              --replace-fail '$assemble_installer_templated_version' ${version}
-          '';
-          binary = "${package}/bin/nix-installer";
-        };
-    }
-    .${method};
+      nixVersion = version;
+      host = "releases.nixos.org";
+      path = "/nix/nix-${version}";
+      script = "${nix.hydraJobs.nixInstallerScript}/nix-installer";
+      binary = lib.getExe package;
+    };
 
   # what the cache serves at the installer's download location
-  releaseFiles = pkgs.linkFarm "${method}-release" [
+  releaseFiles = pkgs.linkFarm "nix-installer-release" [
     {
       name = "nix-installer.sh";
       path = installer.script;
@@ -97,9 +61,6 @@ let
     }
   '';
 
-  # for awk: 1 if the installer has this known issue
-  known = issue: if lib.elem issue installer.knownIssues then "1" else "0";
-
   publicKey = lib.fileContents ./keys/cache.public;
   ca = builtins.readFile ./keys/ca.pem;
   # where the CA goes where cloud-init's ca_certs doesn't work: it doesn't
@@ -108,7 +69,7 @@ let
     arch = "/etc/ca-certificates/trust-source/anchors";
     rocky-9 = "/etc/pki/ca-trust/source/anchors";
   };
-  # the documented one-liner, unchanged, for both installers
+  # the documented one-liner, unchanged
   installCommand = lib.concatStringsSep " " [
     "curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install --no-confirm"
     "--extra-conf 'substituters = http://cache:5000'"
@@ -152,11 +113,8 @@ let
         guest.succeed("test \"$(stat -c '%a %U %G' /nix/store)\" = '1775 root nixbld'")
         # every store object canonical: owned by root, mtime 1
         odd = guest.succeed(
-            "find /nix/store -mindepth 1 ! -path '/nix/store/.links*' -printf '%T@ %u:%g %y %d %p\\n'"
-            " | awk '"
-            "  ($1 + 0 != 1 && !(${known "store-dir-mtimes"} && $3 == \"d\"))"
-            "  || ($2 != \"root:root\" && !(${known "reinstall-chgrps-store"} && $2 == \"root:nixbld\" && $4 == 1))"
-            "' > /tmp/odd; head -n 5 /tmp/odd"
+            "find /nix/store -mindepth 1 ! -path '/nix/store/.links*' -printf '%T@ %u:%g %p\\n'"
+            " | awk '$1 + 0 != 1 || $2 != \"root:root\"' > /tmp/odd; head -n 5 /tmp/odd"
         )
         assert odd == "", f"store objects not canonical: {odd}"
 
@@ -287,7 +245,7 @@ let
 in
 {
   name =
-    if scenario == "use" then "nix-${method}-${distro}" else "nix-${method}-${scenario}-${distro}";
+    if scenario == "use" then "nix-installer-${distro}" else "nix-installer-${scenario}-${distro}";
 
   nodes.cache = {
     # the guest's remote builder

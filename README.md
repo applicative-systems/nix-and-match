@@ -42,9 +42,9 @@ The same checks exist for `aarch64-linux` hosts, without Arch Linux.
 `examples/` tests something useful with it, and shows how:
 
 - [`examples/nix-on-distros`](examples/nix-on-distros): installs Nix on
-  sixteen distros with two installers, then builds, builds remotely on a
-  NixOS node, runs software from a binary cache, reboots and uninstalls. It
-  also repairs broken installations, as the NG installer's own tests do.
+  sixteen distros, then builds, builds remotely on a NixOS node, runs
+  software from a binary cache, reboots and uninstalls. It also repairs
+  broken installations, as the NG installer's own tests do.
 
 ## How
 

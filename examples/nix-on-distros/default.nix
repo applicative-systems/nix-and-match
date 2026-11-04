@@ -1,13 +1,11 @@
 # Nix installed on other distros the way their users install it, then used to
-# build something and to run a program from a binary cache. One check per
-# distro and install method: nix-<method>-<distro>, and for the NG installer
-# its repair cases: nix-ng-installer-repair-<distro>.
+# build something and to run a program from a binary cache: one check per
+# distro, nix-installer-<distro>. The installer's repair cases, installing over
+# broken installations, are nix-installer-repair-<distro>.
 {
   pkgs,
   # the NixOS/nix flake, whose Hydra jobs build its installer
   nix,
-  # the NixOS/nix-installer flake, the NG installer
-  nix-installer,
   testModule,
 }:
 let
@@ -33,18 +31,12 @@ let
     "opensuse-tumbleweed"
     "amazon-2023"
   ];
-  methods = [
-    "installer"
-    "ng-installer"
-  ];
   # "use": install and use Nix. "repair": install over broken installations,
   # the cases of the NG installer's own tests.
   scenarios = [
     "use"
     "repair"
   ];
-  # repairs are what the NG installer promises
-  wanted = { method, scenario, ... }: scenario == "use" || method == "ng-installer";
 in
 lib.listToAttrs (
   map
@@ -54,20 +46,17 @@ lib.listToAttrs (
         test = pkgs.testers.runNixOSTest {
           imports = [
             testModule
-            (import ./test.nix (args // { inherit nix nix-installer; }))
+            (import ./test.nix (args // { inherit nix; }))
           ];
         };
       in
       lib.nameValuePair test.config.name test
     )
     (
-      lib.filter wanted (
-        lib.cartesianProduct {
-          # guests have the host's system
-          distro = lib.filter (d: lib.elem system images.${d}.systems) distros;
-          method = methods;
-          scenario = scenarios;
-        }
-      )
+      lib.cartesianProduct {
+        # guests have the host's system
+        distro = lib.filter (d: lib.elem system images.${d}.systems) distros;
+        scenario = scenarios;
+      }
     )
 )
