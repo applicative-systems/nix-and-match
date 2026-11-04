@@ -15,11 +15,20 @@ let
   images = import ../../lib/images.nix { inherit pkgs; };
 
   distros = [
+    "debian-12"
     "debian-13"
+    "ubuntu-22.04"
     "ubuntu-24.04"
+    "ubuntu-26.04"
+    "fedora-43"
     "fedora-44"
     "arch"
     "almalinux-9"
+    "almalinux-10"
+    "rocky-9"
+    "rocky-10"
+    "oracle-9"
+    "opensuse-leap-16.0"
     "opensuse-tumbleweed"
     "amazon-2023"
   ];

@@ -70,10 +70,12 @@ let
   # a program from the binary cache, like a project's demo
   demo = pkgs.mitmproxy;
 
-  # built by an ordinary user, in the sandbox, with nothing to substitute
+  # built in the sandbox, with nothing to substitute: by an ordinary user, on
+  # each boot, or on the NixOS node as a remote builder
   build = ''
+    { where ? "first-boot" }:
     derivation {
-      name = "built-on-${distro}";
+      name = "built-on-${distro}-''${where}";
       system = builtins.currentSystem;
       builder = "/bin/sh";
       args = [ "-c" "echo built in the sandbox > $out" ];
@@ -82,6 +84,12 @@ let
 
   publicKey = lib.fileContents ./keys/cache.public;
   ca = builtins.readFile ./keys/ca.pem;
+  # where the CA goes where cloud-init's ca_certs doesn't work: it doesn't
+  # support Arch, and Rocky 9's cloud-init skips it as "not verified on rocky"
+  caAnchors = {
+    arch = "/etc/ca-certificates/trust-source/anchors";
+    rocky-9 = "/etc/pki/ca-trust/source/anchors";
+  };
   # the documented one-liner, unchanged, for both installers
   installCommand = lib.concatStringsSep " " [
     "curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install --no-confirm"
@@ -93,6 +101,10 @@ in
   name = "nix-${method}-${distro}";
 
   nodes.cache = {
+    # the guest's remote builder
+    services.openssh.enable = true;
+    users.users.root.openssh.authorizedKeys.keyFiles = [ ./keys/builder.pub ];
+
     networking.firewall.allowedTCPPorts = [
       443
       5000
@@ -142,18 +154,32 @@ in
           path = "/etc/nix-demo/build.nix";
           content = build;
         }
+        {
+          path = "/root/.ssh/builder";
+          permissions = "0600";
+          content = builtins.readFile ./keys/builder;
+        }
+        {
+          path = "/root/.ssh/config";
+          content = ''
+            Host cache
+              IdentityFile /root/.ssh/builder
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+          '';
+        }
       ]
-      ++ lib.optional (distro == "arch") {
-        path = "/etc/ca-certificates/trust-source/anchors/nix-and-match.crt";
+      ++ lib.optional (caAnchors ? ${distro}) {
+        path = "${caAnchors.${distro}}/nix-and-match.crt";
         content = ca;
       };
       runcmd = [
         "useradd --create-home --shell /bin/bash alice"
       ]
-      ++ lib.optional (distro == "arch") "update-ca-trust";
+      ++ lib.optional (caAnchors ? ${distro}) "update-ca-trust";
     }
-    # trust the test CA. cloud-init's ca_certs doesn't support Arch.
-    // lib.optionalAttrs (distro != "arch") { ca_certs.trusted = [ ca ]; };
+    # trust the test CA
+    // lib.optionalAttrs (!caAnchors ? ${distro}) { ca_certs.trusted = [ ca ]; };
   };
 
   testScript = ''
@@ -161,8 +187,20 @@ in
     cache.wait_for_unit("nginx.service")
     cache.wait_for_unit("harmonia.socket")
 
+    # in a new login shell of an ordinary user, as after logging in
     def user(command):
         return guest.succeed(f"su - alice -c '{command}'")
+
+    # root's login shell: the test's shell started before Nix was installed
+    def root(command):
+        return guest.succeed(f"bash -lc '{command}'")
+
+    def build(where):
+        out = user(f"nix-build --no-out-link --argstr where {where} /etc/nix-demo/build.nix").strip()
+        guest.succeed(f"grep -x 'built in the sandbox' {out}")
+
+    guest.log(guest.succeed("grep PRETTY_NAME /etc/os-release"))
+    guest.log("SELinux: " + guest.succeed("getenforce 2>/dev/null || echo not present"))
 
     with subtest("the test CA and hosts are in place"):
         guest.succeed("curl -sSfI https://artifacts.nixos.org/nix-installer")
@@ -178,17 +216,54 @@ in
         installed = user("nix --version").strip()
         assert installed == "nix (Nix) ${installer.nixVersion}", f"installed {installed}"
 
+    with subtest("the store belongs to root and the build users"):
+        gid = guest.succeed("getent group nixbld | cut -d: -f3").strip()
+        builders = guest.succeed(f"getent passwd | awk -F: '$4 == {gid}' | cut -d: -f1").split()
+        assert builders, "no build users"
+        guest.log(f"{len(builders)} build users")
+        guest.succeed("test \"$(stat -c '%a %U %G' /nix/store)\" = '1775 root nixbld'")
+        root("nix-store --verify --check-contents")
+
     with subtest("an ordinary user builds in the sandbox"):
-        out = user("nix-build --no-out-link /etc/nix-demo/build.nix").strip()
+        build("first-boot")
+
+    with subtest("root builds on the NixOS node"):
+        cache.wait_for_unit("sshd.service")
+        out = root(
+            "nix-build --no-out-link --max-jobs 0 --builders ssh-ng://root@cache"
+            " --argstr where cache /etc/nix-demo/build.nix"
+        ).strip()
+        cache.succeed(f"grep -x 'built in the sandbox' {out}")
         guest.succeed(f"grep -x 'built in the sandbox' {out}")
 
-    with subtest("an ordinary user runs a program from the binary cache"):
-        user("nix-store --realise ${demo}")
-        guest.log(user("${lib.getExe demo} --version"))
+    with subtest("an ordinary user installs a program from the binary cache"):
+        user("nix-env --install ${demo}")
+        # on PATH in a new login shell
+        guest.log(user("${demo.meta.mainProgram} --version"))
+
+    with subtest("nix works after a reboot"):
+        guest.shutdown()
+        guest.start()
+        build("second-boot")
+        guest.log(user("${demo.meta.mainProgram} --version"))
+
+    with subtest("no SELinux denials for nix"):
+        denials = guest.succeed(
+            "{ cat /var/log/audit/audit.log 2>/dev/null; journalctl -k --no-pager 2>/dev/null; }"
+            " | grep 'avc: *denied' | grep nix | grep -v nixos-test-backdoor || true"
+        )
+        assert denials == "", denials
 
     with subtest("uninstall"):
         guest.log(guest.succeed("/nix/nix-installer uninstall --no-confirm 2>&1"))
         guest.succeed("test ! -e /nix")
         guest.fail("su - alice -c 'command -v nix'")
+        guest.fail("getent group nixbld")
+        guest.fail(f"getent passwd | awk -F: '$4 == {gid}' | grep .")
+        guest.fail("systemctl cat nix-daemon.service")
+        guest.fail("systemctl cat nix-daemon.socket")
+        # nothing in /etc points to Nix any more: shell profiles, configs, units
+        leftovers = guest.succeed("grep -rlsI -e /nix/var -e nix-daemon /etc || true")
+        assert leftovers == "", f"left in /etc: {leftovers}"
   '';
 }

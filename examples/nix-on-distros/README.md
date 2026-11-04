@@ -7,10 +7,18 @@ then checks that it works:
    `curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install`.
    The installer's own self-test must pass, and `nix --version` must be the
    Nix from the flake input.
-2. **build:** an ordinary user builds a derivation in the sandbox.
-3. **binary cache:** the same user fetches mitmproxy from a binary cache and
-   runs it, as with a project's demo.
-4. **uninstall:** `/nix/nix-installer uninstall` removes everything.
+2. **layout:** there are build users, `/nix/store` is `1775 root:nixbld`, and
+   `nix-store --verify --check-contents` passes.
+3. **build:** an ordinary user builds a derivation in the sandbox.
+4. **remote build:** root builds on the NixOS node over `ssh-ng://`.
+5. **binary cache:** the same ordinary user installs mitmproxy from a binary
+   cache with `nix-env`, and runs it from `PATH` in a new login shell.
+6. **reboot:** after a reboot, the daemon still builds and the program still
+   runs.
+7. **SELinux:** the logs have no denials involving Nix.
+8. **uninstall:** `/nix/nix-installer uninstall` removes everything:
+   `/nix`, the build users and group, the daemon's units, and every mention
+   of Nix in `/etc`.
 
 There is one check per distro and install method, `nix-<method>-<distro>`:
 
@@ -29,7 +37,10 @@ The NixOS node `cache` stands in for the internet:
 - harmonia serves the node's Nix store as a signed binary cache. The installer
   is told about it with `--extra-conf`.
 
-`keys/` holds the test CA, the server certificate and the cache's signing key.
+- sshd lets the guest's root build there, with a key from `keys/`.
+
+`keys/` holds the test CA, the server certificate, the cache's signing key
+and the builder's SSH key.
 They are only for this test network; `keys/generate.sh` makes new ones.
 
 ## Which installers
@@ -55,6 +66,18 @@ binary from.
 
 ## Distros
 
-Debian 13, Ubuntu 24.04, Fedora 44, Arch Linux, AlmaLinux 9, openSUSE
-Tumbleweed and Amazon Linux 2023: those in ngipkgs' demo tests, plus
-enterprise and SELinux distros. Arch Linux only runs on x86_64.
+Sixteen, with each distro's supported releases:
+
+| Family     | Releases                                     | SELinux    |
+| ---------- | -------------------------------------------- | ---------- |
+| Debian     | 12, 13                                       |            |
+| Ubuntu     | 22.04, 24.04, 26.04                          |            |
+| Fedora     | 43, 44                                       | enforcing  |
+| Arch Linux | rolling                                      |            |
+| Enterprise | AlmaLinux 9, 10, Rocky 9, 10, Oracle Linux 9 | enforcing  |
+| openSUSE   | Leap 16.0, Tumbleweed                        | enforcing  |
+| Amazon     | Amazon Linux 2023                            | permissive |
+
+Oracle Linux runs its own kernel, which has no virtiofs; the test doesn't
+need it. Arch Linux only runs on x86_64. Each check logs the SELinux mode it
+saw.

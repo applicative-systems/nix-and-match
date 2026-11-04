@@ -1,5 +1,5 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i bash -p openssl nix
+#!nix-shell -i bash -p openssl openssh nix
 # Test-only keys, committed so that the test needs no evaluation-time builds.
 # Never use them outside of the test network. Regenerate from this directory:
 #
@@ -23,3 +23,7 @@ rm server.csr ca.srl ca.key
 # binary cache signing key
 nix --extra-experimental-features nix-command key generate-secret --key-name cache-1 >cache.secret
 nix --extra-experimental-features nix-command key convert-secret-to-public <cache.secret >cache.public
+
+# root's ssh key on the guests, to build on the `cache` node
+rm -f builder builder.pub
+ssh-keygen -q -t ed25519 -N "" -C "nix-and-match builder" -f builder
