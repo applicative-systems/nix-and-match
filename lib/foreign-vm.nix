@@ -47,7 +47,9 @@ let
     # confine services, so that `su` fails. `-`: ignored without SELinux.
     SELinuxContext=-unconfined_u:unconfined_r:unconfined_t:s0-s0:c0.c1023
     [Install]
-    WantedBy=multi-user.target
+    # not multi-user.target: cloud-final.service runs after that, so the
+    # ordering above would be a cycle
+    WantedBy=cloud-final.service
   '';
 
   # cloud-config merge: maps recursively, lists appended, other values from `b`
@@ -85,6 +87,17 @@ let
           append = true;
           content = hosts;
         }
+        # amazon's cloud-init loses the addresses if there is more than one.
+        # Runs in cloud-final.service on every boot, before the shell starts.
+        {
+          path = "/var/lib/cloud/scripts/per-boot/nix-and-match-addresses";
+          permissions = "0755";
+          content = ''
+            #!/bin/sh
+            ip address replace ${ip}/24 dev eth0
+            ip address replace ${ip6}/64 dev eth0
+          '';
+        }
       ];
       # no time server on the test network: arch would wait for one forever
       bootcmd = [
@@ -92,25 +105,6 @@ let
           "sh"
           "-c"
           "systemctl mask --now systemd-time-wait-sync.service || true"
-        ]
-      ];
-      # amazon's cloud-init loses the addresses if there is more than one
-      runcmd = [
-        [
-          "ip"
-          "address"
-          "replace"
-          "${ip}/24"
-          "dev"
-          "eth0"
-        ]
-        [
-          "ip"
-          "address"
-          "replace"
-          "${ip6}/64"
-          "dev"
-          "eth0"
         ]
       ];
     };
@@ -137,6 +131,7 @@ let
         "serial-getty@hvc0.service"
       ]
     ];
+    # enabled, so the shell is back after `shutdown()` and `start()`
     runcmd = [
       [
         "systemctl"
@@ -144,7 +139,8 @@ let
       ]
       [
         "systemctl"
-        "start"
+        "enable"
+        "--now"
         "--no-block"
         "nixos-test-backdoor.service"
       ]
@@ -152,7 +148,8 @@ let
   };
 
   # virtiofs shares, mounted from runcmd: earlier stages can run before /tmp is
-  # mounted, which would hide the shares under it
+  # mounted, which would hide the shares under it. runcmd only runs on the
+  # first boot, so the mounts also go to /etc/fstab for later boots.
   sharesCloudConfig =
     shares:
     lib.optionalAttrs (shares != { }) {
@@ -171,7 +168,12 @@ let
         [
           "sh"
           "-c"
-          "mkdir -p ${share.target} && mount -t virtiofs -o ${options} ${tag} ${share.target}"
+          (lib.concatStringsSep " && " [
+            "o=${options}"
+            "mkdir -p ${share.target}"
+            "mount -t virtiofs -o $o ${tag} ${share.target}"
+            "echo \"${tag} ${share.target} virtiofs $o,nofail 0 0\" >> /etc/fstab"
+          ])
         ]
       ) shares;
     };

@@ -41,8 +41,9 @@ The same checks exist for `aarch64-linux` hosts, without Arch Linux.
 `tests/` protects this repository and its images from regressions.
 `examples/` tests something useful with it, and shows how:
 
-- [`examples/nix-on-distros`](examples/nix-on-distros): installs Nix on seven
-  distros with the official installer, then builds and runs software with it.
+- [`examples/nix-on-distros`](examples/nix-on-distros): installs Nix on
+  sixteen distros with two installers, then builds, builds remotely on a
+  NixOS node, runs software from a binary cache, reboots and uninstalls.
 
 ## How
 
@@ -96,6 +97,8 @@ foreignNodes = {
 
 The shell starts only once cloud-init is done, so the first `succeed` waits
 for provisioning and the test script needs no `cloud-init status --wait`.
+Machines survive `shutdown()` and `start()`: the disk is kept, and the shell,
+the addresses and the shared folders come back on every boot.
 `cloud-init status --long` in the guest shows whether everything worked.
 
 Set `shell = false` to see a cloud-init machine only from the network, as

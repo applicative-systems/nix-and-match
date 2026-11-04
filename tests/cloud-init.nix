@@ -102,6 +102,20 @@ in
       ''
   )
   + ''
+    with subtest("survives a reboot"):
+        guest.succeed("echo kept > /root/marker")
+        guest.shutdown()
+        guest.start()
+        guest.succeed("grep -x kept /root/marker")
+        # the network is configured again
+        guest.succeed("curl -sf http://server/ | grep 'hello from nixos'")
+        if ${if virtiofs then "True" else "False"}:
+            # the shares are mounted again, the store with its SELinux label
+            guest.succeed("findmnt -t virtiofs /tmp/shared")
+            guest.succeed("systemd-run --wait ${hello}/bin/hello")
+
+  ''
+  + ''
     with subtest("shell survives isolate"):
         guest.succeed("systemctl isolate rescue.target")
         guest.succeed("systemctl is-active rescue.target")
