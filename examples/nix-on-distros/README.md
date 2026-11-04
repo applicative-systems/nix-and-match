@@ -7,7 +7,8 @@ then checks that it works:
    `curl -sSfL https://artifacts.nixos.org/nix-installer | sh -s -- install`.
    The installer's own self-test must pass, and `nix --version` must be the
    Nix from the flake input.
-2. **layout:** there are build users, `/nix/store` is `1775 root:nixbld`, and
+2. **layout:** there are build users, `/nix/store` is `1775 root:nixbld`,
+   everything in it is owned by `root:root` with mtime 1, and
    `nix-store --verify --check-contents` passes.
 3. **build:** an ordinary user builds a derivation in the sandbox.
 4. **remote build:** root builds on the NixOS node over `ssh-ng://`.
@@ -26,6 +27,46 @@ There is one check per distro and install method, `nix-<method>-<distro>`:
 nix build .#checks.x86_64-linux.nix-installer-fedora-44 -L
 ```
 
+## Repairs
+
+The NG installer promises to repair broken installations when it runs
+again. `nix-ng-installer-repair-<distro>` runs the cases of its own VM tests,
+all in one machine. Each case starts from a clean system and ends with an
+uninstall that must leave nothing behind, as above.
+
+- **cure-self:** install, lose `/nix/receipt.json`, break the installation,
+  check that it is broken, then install again with the one-liner. The result
+  must pass the layout checks, build, and substitute from the cache. The
+  breakages:
+  - none
+  - `/nix` deleted
+  - three build users deleted
+  - all build users and the group deleted
+  - the daemon socket disabled
+  - the daemon socket stopped
+  - `/etc/nix` deleted
+  - the snippets that put Nix on `PATH` removed from `/etc`
+- **uninstall a broken installation:** delete the build users and group, or
+  `/etc/nix`, then uninstall. The uninstaller exits with an error here, as the
+  NG installer's tests expect, but it must still remove everything.
+
+```sh
+nix build .#checks.x86_64-linux.nix-ng-installer-repair-debian-13 -L
+```
+
+## Known issues
+
+`knownIssues` in `test.nix` lists what a pinned installer is known to get
+wrong, so its checks pass with exactly that exception. NG 2.35.4 has two, both
+found by these checks and both fixed on its main branch since:
+
+- `store-dir-mtimes`: the store's directories keep the time of the
+  installation, not mtime 1, as tar-rs doesn't restore directory mtimes.
+- `reinstall-chgrps-store`: installing over an existing store changes the
+  group of the store's top-level entries to `nixbld`.
+
+Drop them when the `nix-installer` input moves to a release with the fixes.
+
 ## How it runs offline
 
 The NixOS node `cache` stands in for the internet:
@@ -36,12 +77,11 @@ The NixOS node `cache` stands in for the internet:
   is downloaded.
 - harmonia serves the node's Nix store as a signed binary cache. The installer
   is told about it with `--extra-conf`.
-
 - sshd lets the guest's root build there, with a key from `keys/`.
 
 `keys/` holds the test CA, the server certificate, the cache's signing key
-and the builder's SSH key.
-They are only for this test network; `keys/generate.sh` makes new ones.
+and the builder's SSH key. They are only for this test network;
+`keys/generate.sh` makes new ones.
 
 ## Which installers
 
