@@ -1,4 +1,21 @@
 {
+  "almalinux-10": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-ymXRwyQwrNhOkSbC5I87QRDNZJpZJxK/tXCmZQ5+Gec=",
+        "url": "https://repo.almalinux.org/almalinux/10/cloud/aarch64/images/AlmaLinux-10-GenericCloud-10.2-20261012.0.aarch64.qcow2",
+        "version": "10.2-20261012.0"
+      },
+      "x86_64-linux": {
+        "hash": "sha256-y+5HJvwPWmBpS7TyiQA8wiHnFd+6zrzOdrVNrzhtjso=",
+        "url": "https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-10.2-20261012.0.x86_64.qcow2",
+        "version": "10.2-20261012.0"
+      }
+    },
+    "verification": "signature"
+  },
   "almalinux-9": {
     "format": "qcow2",
     "provisioner": "cloud-init",
@@ -45,6 +62,23 @@
     },
     "verification": "signature"
   },
+  "debian-12": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha512-9Chm/iK0uvnw7U+B1iAGTypLhrGLkr/jqqpAur9oGdOcvwyqqtE/SuPnyfgsvXiwyMq63YvHN84TV45h+oaXDA==",
+        "url": "https://cloud.debian.org/images/cloud/bookworm/20261026-2643/debian-12-genericcloud-arm64-20261026-2643.qcow2",
+        "version": "20261026-2643"
+      },
+      "x86_64-linux": {
+        "hash": "sha512-BGS11K46pPZYRo2I2oOveFe3FUizDUbctigncJVadH+5Wpg0dtuQ0lr9BlOvYHIkx+vQUSKrcfqhBv1xKqrWUg==",
+        "url": "https://cloud.debian.org/images/cloud/bookworm/20261026-2643/debian-12-genericcloud-amd64-20261026-2643.qcow2",
+        "version": "20261026-2643"
+      }
+    },
+    "verification": "checksum-only"
+  },
   "debian-13": {
     "format": "qcow2",
     "provisioner": "cloud-init",
@@ -62,6 +96,23 @@
     },
     "verification": "checksum-only"
   },
+  "fedora-43": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-ZgMa6p7GHm0NW7oSuUVOgMqU6KeckT033tTGAxFwW4s=",
+        "url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-43-1.6.aarch64.qcow2",
+        "version": "43-1.6"
+      },
+      "x86_64-linux": {
+        "hash": "sha256-hGV0yKl80tjcHyMQYtcxB8yFy7vaVjNeJkpG46bIqy8=",
+        "url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2",
+        "version": "43-1.6"
+      }
+    },
+    "verification": "signature"
+  },
   "fedora-44": {
     "format": "qcow2",
     "provisioner": "cloud-init",
@@ -75,6 +126,23 @@
         "hash": "sha256-KGgP5bNxpaguv0OjGSbghqFo5ZlJ0DlpxQk+cHH5C38=",
         "url": "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2",
         "version": "44-1.7"
+      }
+    },
+    "verification": "signature"
+  },
+  "opensuse-leap-16.0": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-UUeHfeHj7H0H2acruYEBJG7u6g07kAyMywAAB6cPyKQ=",
+        "url": "https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.aarch64-Cloud-Build18.89.qcow2",
+        "version": "18.89"
+      },
+      "x86_64-linux": {
+        "hash": "sha256-LzKKATX5yL9ixewBJAUWn3YYjqer8Y+cZcsOpTdMBCs=",
+        "url": "https://download.opensuse.org/distribution/leap/16.0/appliances/Leap-16.0-Minimal-VM.x86_64-Cloud-Build18.89.qcow2",
+        "version": "18.89"
       }
     },
     "verification": "signature"
@@ -114,6 +182,23 @@
     "verification": "checksum-only",
     "virtiofs": false
   },
+  "rocky-10": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-RXyDdeGUlvQ6JcSmFp+hEjdTbFPO9vhaIOo8WnUaoPU=",
+        "url": "https://dl.rockylinux.org/pub/rocky/10/images/aarch64/Rocky-10-GenericCloud-Base-10.2-20260525.0.aarch64.qcow2",
+        "version": "10.2-20260525.0"
+      },
+      "x86_64-linux": {
+        "hash": "sha256-n8np/xaIi7aKw5sDkuJcnJJoTVDIXxzOarVJNju8S0g=",
+        "url": "https://dl.rockylinux.org/pub/rocky/10/images/x86_64/Rocky-10-GenericCloud-Base-10.2-20260525.0.x86_64.qcow2",
+        "version": "10.2-20260525.0"
+      }
+    },
+    "verification": "signature"
+  },
   "rocky-9": {
     "format": "qcow2",
     "provisioner": "cloud-init",
@@ -149,6 +234,23 @@
     },
     "verification": "none"
   },
+  "ubuntu-22.04": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-5yCuCD+Tuq5HrJt2oJYkP+ECf2CZjPESekenTIgPZO0=",
+        "url": "https://cloud-images.ubuntu.com/releases/jammy/release-20261020/ubuntu-22.04-server-cloudimg-arm64.img",
+        "version": "20261020"
+      },
+      "x86_64-linux": {
+        "hash": "sha256-IJnmPaC4Iu+OBePVlsG0Auqq5lj8CKuRnLhJW/zcSIs=",
+        "url": "https://cloud-images.ubuntu.com/releases/jammy/release-20261020/ubuntu-22.04-server-cloudimg-amd64.img",
+        "version": "20261020"
+      }
+    },
+    "verification": "signature"
+  },
   "ubuntu-24.04": {
     "format": "qcow2",
     "provisioner": "cloud-init",
@@ -162,6 +264,23 @@
         "hash": "sha256-BOjyRhoWpE54o3AoRHHylhbN2brxiT3yWAe3H5hbbJQ=",
         "url": "https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img",
         "version": "20261017"
+      }
+    },
+    "verification": "signature"
+  },
+  "ubuntu-26.04": {
+    "format": "qcow2",
+    "provisioner": "cloud-init",
+    "systems": {
+      "aarch64-linux": {
+        "hash": "sha256-jrh2wszEtv+J5KZdURgVkjsoXgRQO6RlgJv1h/dj2iQ=",
+        "url": "https://cloud-images.ubuntu.com/releases/resolute/release-20261016/ubuntu-26.04-server-cloudimg-arm64.img",
+        "version": "20261016"
+      },
+      "x86_64-linux": {
+        "hash": "sha256-VkXQMYrSH2Q+uxrEVnUUYg6YkzgLB7AgH9oWO6pbfrU=",
+        "url": "https://cloud-images.ubuntu.com/releases/resolute/release-20261016/ubuntu-26.04-server-cloudimg-amd64.img",
+        "version": "20261016"
       }
     },
     "verification": "signature"

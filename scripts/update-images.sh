@@ -13,15 +13,22 @@ catalog=lib/images.json
 keys=keys
 all=(
   almalinux-9
+  almalinux-10
   amazon-2023
   arch
+  debian-12
   debian-13
+  fedora-43
   fedora-44
+  opensuse-leap-16.0
   opensuse-tumbleweed
   oracle-9
   rocky-9
+  rocky-10
   talos-1.14
+  ubuntu-22.04
   ubuntu-24.04
+  ubuntu-26.04
 )
 # systems an image is published for, if not all of them
 declare -A systems_of=(
@@ -108,17 +115,20 @@ pin() {
   echo "$name ($system): $version"
 }
 
-update_almalinux-9() {
-  local arch base file
+# update_almalinux <major>
+update_almalinux() {
+  local major=$1 arch base file
   arch=$(rpm_arch)
-  base=https://repo.almalinux.org/almalinux/9/cloud/$arch/images
+  base=https://repo.almalinux.org/almalinux/$major/cloud/$arch/images
   save "$base/CHECKSUM" sums
   save "$base/CHECKSUM.asc" sums.asc
-  verify_gpg almalinux-9.asc "$work/sums.asc" "$work/sums"
-  file=$(newest "AlmaLinux-9-GenericCloud-9\.[0-9]+-[0-9]{8}\.$arch\.qcow2" <"$work/sums")
-  pin almalinux-9 "$(sed -E "s/^AlmaLinux-9-GenericCloud-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
+  verify_gpg "almalinux-$major.asc" "$work/sums.asc" "$work/sums"
+  file=$(newest "AlmaLinux-$major-GenericCloud-$major\.[0-9]+-[0-9.]+\.$arch\.qcow2" <"$work/sums")
+  pin "almalinux-$major" "$(sed -E "s/^AlmaLinux-$major-GenericCloud-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
     "$base/$file" sha256 "$(checksum_of "$work/sums" "$file")" signature
 }
+update_almalinux-9() { update_almalinux 9; }
+update_almalinux-10() { update_almalinux 10; }
 
 update_amazon-2023() {
   local latest base file arch dir=kvm
@@ -149,26 +159,45 @@ update_arch() {
   pin arch "${version#v}" "$base/$file" sha256 "$(cut -d ' ' -f 1 "$work/sums")" signature
 }
 
-update_debian-13() {
-  local mirror=https://cloud.debian.org/images/cloud/trixie version file
+# update_debian <major> <codename>
+update_debian() {
+  local major=$1 mirror=https://cloud.debian.org/images/cloud/$2 version file
   version=$(fetch "$mirror/" | newest '[0-9]{8}-[0-9]{4}')
-  file=debian-13-genericcloud-$(deb_arch)-$version.qcow2
+  file=debian-$major-genericcloud-$(deb_arch)-$version.qcow2
   save "$mirror/$version/SHA512SUMS" sums
-  pin debian-13 "$version" "$mirror/$version/$file" sha512 \
+  pin "debian-$major" "$version" "$mirror/$version/$file" sha512 \
     "$(checksum_of "$work/sums" "$file")" checksum-only
 }
+update_debian-12() { update_debian 12 bookworm; }
+update_debian-13() { update_debian 13 trixie; }
 
-update_fedora-44() {
-  local arch base sums file
+# update_fedora <release>; keys/fedora.asc holds the keys of several releases
+update_fedora() {
+  local release=$1 arch base sums file
   arch=$(rpm_arch)
-  base=https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/$arch/images
-  sums=$(fetch "$base/" | newest "Fedora-Cloud-44-[0-9.]+-$arch-CHECKSUM")
+  base=https://dl.fedoraproject.org/pub/fedora/linux/releases/$release/Cloud/$arch/images
+  sums=$(fetch "$base/" | newest "Fedora-Cloud-$release-[0-9.]+-$arch-CHECKSUM")
   save "$base/$sums" sums.signed
   # only trust what is inside the signature, not text around it
   verify_gpg fedora.asc --output "$work/sums" "$work/sums.signed"
-  file=$(newest "Fedora-Cloud-Base-Generic-44-[0-9.]+\.$arch\.qcow2" <"$work/sums")
-  pin fedora-44 "$(sed -E "s/^Fedora-Cloud-Base-Generic-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
+  file=$(newest "Fedora-Cloud-Base-Generic-$release-[0-9.]+\.$arch\.qcow2" <"$work/sums")
+  pin "fedora-$release" "$(sed -E "s/^Fedora-Cloud-Base-Generic-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
     "$base/$file" sha256 "$(checksum_of "$work/sums" "$file")" signature
+}
+update_fedora-43() { update_fedora 43; }
+update_fedora-44() { update_fedora 44; }
+
+update_opensuse-leap-16.0() {
+  local arch base file
+  arch=$(rpm_arch)
+  base=https://download.opensuse.org/distribution/leap/16.0/appliances
+  file=$(fetch "$base/?P=*Minimal-VM*Cloud*" |
+    newest "Leap-16\.0-Minimal-VM\.$arch-Cloud-Build[0-9.]+\.qcow2")
+  save "$base/$file.sha256" sums
+  save "$base/$file.sha256.asc" sums.asc
+  verify_gpg opensuse.asc "$work/sums.asc" "$work/sums"
+  pin opensuse-leap-16.0 "$(sed -E 's/.*-Build([0-9.]+)\.qcow2$/\1/' <<<"$file")" "$base/$file" sha256 \
+    "$(cut -d ' ' -f 1 "$work/sums")" signature
 }
 
 update_opensuse-tumbleweed() {
@@ -199,17 +228,20 @@ update_oracle-9() {
   pin oracle-9 "${file%.qcow2}" "$url" sha256 "$hash" checksum-only
 }
 
-update_rocky-9() {
-  local arch base file
+# update_rocky <major>
+update_rocky() {
+  local major=$1 arch base file
   arch=$(rpm_arch)
-  base=https://dl.rockylinux.org/pub/rocky/9/images/$arch
+  base=https://dl.rockylinux.org/pub/rocky/$major/images/$arch
   save "$base/CHECKSUM" sums
   save "$base/CHECKSUM.asc" sums.asc
-  verify_gpg rocky-9.asc "$work/sums.asc" "$work/sums"
-  file=$(newest "Rocky-9-GenericCloud-Base-9\.[0-9]+-[0-9.]+\.$arch\.qcow2" <"$work/sums")
-  pin rocky-9 "$(sed -E "s/^Rocky-9-GenericCloud-Base-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
+  verify_gpg "rocky-$major.asc" "$work/sums.asc" "$work/sums"
+  file=$(newest "Rocky-$major-GenericCloud-Base-$major\.[0-9]+-[0-9.]+\.$arch\.qcow2" <"$work/sums")
+  pin "rocky-$major" "$(sed -E "s/^Rocky-$major-GenericCloud-Base-(.*)\.$arch\.qcow2$/\1/" <<<"$file")" \
     "$base/$file" sha256 "$(checksum_of "$work/sums" "$file")" signature
 }
+update_rocky-9() { update_rocky 9; }
+update_rocky-10() { update_rocky 10; }
 
 update_talos-1.14() {
   # vanilla factory schematic. Factory images are not covered by the release's
@@ -229,17 +261,21 @@ update_talos-1.14() {
   PROVISIONER=none pin talos-1.14 "$version" "$url" sha256 "$hash" none xz
 }
 
-update_ubuntu-24.04() {
-  local mirror=https://cloud-images.ubuntu.com/releases/noble version base file
-  file=ubuntu-24.04-server-cloudimg-$(deb_arch).img
+# update_ubuntu <version> <codename>
+update_ubuntu() {
+  local mirror=https://cloud-images.ubuntu.com/releases/$2 version base file
+  file=ubuntu-$1-server-cloudimg-$(deb_arch).img
   version=$(fetch "$mirror/" | newest 'release-[0-9]{8}')
   base=$mirror/$version
   save "$base/SHA256SUMS" sums
   save "$base/SHA256SUMS.gpg" sums.gpg
   verify_gpg ubuntu-cloud.asc "$work/sums.gpg" "$work/sums"
-  pin ubuntu-24.04 "${version#release-}" "$base/$file" sha256 \
+  pin "ubuntu-$1" "${version#release-}" "$base/$file" sha256 \
     "$(checksum_of "$work/sums" "$file")" signature
 }
+update_ubuntu-22.04() { update_ubuntu 22.04 jammy; }
+update_ubuntu-24.04() { update_ubuntu 24.04 noble; }
+update_ubuntu-26.04() { update_ubuntu 26.04 resolute; }
 
 if [[ ! -f $catalog ]]; then
   echo "$catalog not found: run this from the repository root" >&2
