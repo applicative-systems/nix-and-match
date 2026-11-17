@@ -46,7 +46,7 @@ The same checks exist for `aarch64-linux` hosts, without Arch Linux.
   software from a binary cache, reboots and uninstalls. It also repairs
   broken installations, as the NG installer's own tests do.
 - [`examples/lix-on-distros`](examples/lix-on-distros): the same for Lix and
-  the Lix installer, built from its repository, on Arch Linux so far.
+  the Lix installer, built from its repository.
 
 ## How
 

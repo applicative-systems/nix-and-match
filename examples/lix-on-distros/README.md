@@ -81,6 +81,7 @@ and the builder's SSH key. They are only for this test network;
 
 ## Distros
 
-Arch Linux for now, which only runs on x86_64. The other distros of
-[`nix-on-distros`](../nix-on-distros/README.md#distros) are one line each in
-`default.nix`.
+The sixteen of [`nix-on-distros`](../nix-on-distros/README.md#distros):
+Debian, Ubuntu, Fedora, Arch Linux, AlmaLinux, Rocky, Oracle Linux, openSUSE
+and Amazon Linux, with each distro's supported releases. Arch Linux only runs
+on x86_64.

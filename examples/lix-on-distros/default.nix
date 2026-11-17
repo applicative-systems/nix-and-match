@@ -62,7 +62,22 @@ let
     };
 
   distros = [
+    "debian-12"
+    "debian-13"
+    "ubuntu-22.04"
+    "ubuntu-24.04"
+    "ubuntu-26.04"
+    "fedora-43"
+    "fedora-44"
     "arch"
+    "almalinux-9"
+    "almalinux-10"
+    "rocky-9"
+    "rocky-10"
+    "oracle-9"
+    "opensuse-leap-16.0"
+    "opensuse-tumbleweed"
+    "amazon-2023"
   ];
   # "use": install and use Lix. "repair": install over broken installations,
   # the cases of the NG installer's own tests, which lix-installer shares.
