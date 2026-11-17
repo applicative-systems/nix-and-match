@@ -54,7 +54,9 @@ The same checks exist for `aarch64-linux` hosts, without Arch Linux.
   overlay, attached to the test's VDE switch with a static IP from a
   cloud-init seed. It is also an empty entry in `nodes` that is never built,
   so the test framework assigns its addresses and hosts entries, available as
-  `nodes.<name>.networking.primaryIPAddress`.
+  `nodes.<name>.networking.primaryIPAddress`. The test framework's
+  systemd-nspawn `containers` are on the same network, see
+  [`tests/containers.nix`](tests/containers.nix).
 - For cloud-init distros, the seed installs the test driver's `hvc0` root
   shell, so `machine.succeed(...)` works as it does on NixOS.
 - Talos has no shell. It gets a machine config through `userData` and is

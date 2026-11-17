@@ -102,6 +102,7 @@
           // {
             "talos-1.14" = mkTest ./tests/talos.nix;
             provisioners = mkTest ./tests/provisioners.nix;
+            containers = mkTest ./tests/containers.nix;
             qemu-opts = (mkTest ./tests/qemu-opts.nix).overrideTestDerivation {
               QEMU_OPTS = "-smbios type=1,serial=nix-and-match";
             };
