@@ -4,6 +4,8 @@
   # examples/nix-on-distros
   # no follows for caching.
   inputs.nix.url = "github:NixOS/nix";
+  # examples/lix-on-distros
+  inputs.lix-installer.url = "git+https://git.lix.systems/lix-project/lix-installer";
 
   outputs =
     inputs:
@@ -108,6 +110,11 @@
           // import ./examples/nix-on-distros {
             inherit pkgs;
             inherit (inputs) nix;
+            testModule = inputs.self.testModules.default;
+          }
+          // import ./examples/lix-on-distros {
+            inherit pkgs;
+            inherit (inputs) lix-installer;
             testModule = inputs.self.testModules.default;
           }
         )
